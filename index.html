@@ -88,6 +88,8 @@ h1,h2,h3{font-family:var(--fd);margin:0;text-wrap:balance}
 .intro{padding-block:26px 8px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
 .intro h2{font-size:clamp(1.6rem,3.2vw,2.1rem);font-weight:750;line-height:1.1;letter-spacing:-.02em}
 .intro p{margin:8px 0 0;color:var(--ink-3);max-width:62ch;font-size:14.5px}
+.intro .more-btn{display:none;padding:2px 4px;font-size:13.5px}
+@media (max-width:520px){.intro{padding-top:18px}.intro p:not(.open) .more{display:none}.intro .more-btn{display:inline}.intro p.open .more-btn{display:none}}
 .who label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--ink-3)}
 .who input{width:240px;max-width:100%}
 input.txt,textarea{padding:10px 12px;border:1px solid var(--hair-2);border-radius:10px;background:var(--field);color:var(--ink);font:500 14.5px var(--f)}
@@ -104,6 +106,9 @@ input.txt:focus,textarea:focus,input.money:focus{outline:none;border-color:var(-
 .tab .step{width:20px;height:20px;border-radius:50%;background:var(--track);color:var(--ink-3);font-size:11px;font-weight:700;display:grid;place-items:center;transition:background .2s,color .2s}
 .tab[aria-selected="true"]{color:var(--ink)}
 .tab[aria-selected="true"] .step{background:var(--gold);color:var(--navy)}
+.tab .ts{display:none}
+.seg{scrollbar-width:none}.seg::-webkit-scrollbar{display:none}
+@media (max-width:520px){.stepbar .seg{display:flex;width:100%}.tab{flex:1;justify-content:center;padding:9px 8px}.tab .tl{display:none}.tab .ts{display:inline}}
 .tab:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
 .progress{display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--ink-3)}
 .progress .pt{width:120px;height:6px;border-radius:99px;background:var(--track);overflow:hidden}
@@ -175,7 +180,8 @@ input.money::placeholder{color:var(--ink-3);font-weight:400}
 .right{display:flex;flex-direction:column;gap:16px;min-width:0}
 .right>*{flex-shrink:0}
 /* Auswertung bleibt beim Ausfüllen sichtbar (nur Desktop) */
-@media (min-width:961px){.right{position:sticky;top:84px;max-height:calc(100vh - 100px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:4px;margin-inline:-4px;padding-inline:4px}}
+@media (min-width:961px){.right.scrolled{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}
+  .right{position:sticky;top:84px;max-height:calc(100vh - 100px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:4px;margin-inline:-4px;padding-inline:4px}}
 .hero{border-radius:20px;padding:22px 24px;color:#fff;position:relative;overflow:hidden;
   background:linear-gradient(140deg,rgba(10,31,68,.94),rgba(20,48,95,.9));border:1px solid rgba(201,162,74,.4);box-shadow:var(--shadow)}
 .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(201,162,74,.35),transparent 70%);pointer-events:none}
@@ -332,7 +338,7 @@ footer a:hover{color:var(--gold-ink)}
   <section class="intro">
     <div>
       <h2>Ihr persönlicher Finanzüberblick</h2>
-      <p>Tragen Sie Ihre Beträge ein, die Auswertung rechnet sofort mit. Jährliche Kosten können Sie mit einem Tipp auf „€/Mon.“ als Jahresbetrag eingeben. Ihre Eingaben bleiben nur auf diesem Gerät, bis Sie mir das PDF senden.</p>
+      <p id="intro-p">Tragen Sie Ihre Beträge ein, die Auswertung rechnet sofort mit.<span class="more"> Jährliche Kosten können Sie mit einem Tipp auf „€/Mon.“ als Jahresbetrag eingeben. Ihre Eingaben bleiben nur auf diesem Gerät, bis Sie mir das PDF senden.</span> <button type="button" class="link more-btn" aria-expanded="false" aria-controls="intro-p">Mehr</button></p>
     </div>
     <div class="who">
       <label for="client-name">Ihr Name<input class="txt" type="text" id="client-name" placeholder="Vor- und Nachname" autocomplete="name"></label>
@@ -342,9 +348,9 @@ footer a:hover{color:var(--gold-ink)}
   <div class="stepbar">
     <nav class="seg glass" role="tablist" aria-label="Schritte" id="seg">
       <span class="seg-ind" id="seg-ind" aria-hidden="true"></span>
-      <button class="tab" role="tab" id="tab-budget" aria-selected="true" aria-controls="view-budget" data-view="budget"><span class="step">1</span>Einnahmen &amp; Ausgaben</button>
+      <button class="tab" role="tab" id="tab-budget" aria-selected="true" aria-controls="view-budget" data-view="budget"><span class="step">1</span><span class="tl">Einnahmen &amp; Ausgaben</span><span class="ts">Budget</span></button>
       <button class="tab" role="tab" id="tab-wealth" aria-selected="false" aria-controls="view-wealth" data-view="wealth"><span class="step">2</span>Vermögen</button>
-      <button class="tab" role="tab" id="tab-finish" aria-selected="false" aria-controls="view-finish" data-view="finish"><span class="step">3</span>Abschluss &amp; PDF</button>
+      <button class="tab" role="tab" id="tab-finish" aria-selected="false" aria-controls="view-finish" data-view="finish"><span class="step">3</span><span class="tl">Abschluss &amp; PDF</span><span class="ts">PDF</span></button>
     </nav>
     <div class="progress" aria-live="polite"><div class="pt"><div class="pf" id="prog-fill"></div></div><span id="prog-txt">0 von 0 Bereichen ausgefüllt</span></div>
   </div>
@@ -710,7 +716,8 @@ function render() {
   tween($('k-exp'), b.total, eur); $('k-exp-f').textContent = 'davon Fixkosten: ' + eur(b.fix);
   tween($('k-save'), b.savePct, pct); tween($('k-fix'), b.fixPct, pct);
   const sc = $('k-save-c'), fc = $('k-fix-c');
-  if (!b.incomeTotal) { sc.className = 'chip'; sc.textContent = 'Ziel 15 %'; fc.className = 'chip'; fc.textContent = 'Richtwert < 50 %'; }
+  const open = !b.incomeTotal || !b.total;
+  if (open) { sc.className = 'chip'; sc.textContent = 'Ziel 15 %'; fc.className = 'chip'; fc.textContent = 'Richtwert < 50 %'; }
   else {
     [sc.className, sc.textContent] = b.savePct >= 15 ? ['chip ok', 'Ziel erreicht'] : b.savePct >= 10 ? ['chip warn', 'Fast am Ziel'] : ['chip bad', 'Unter Ziel'];
     [fc.className, fc.textContent] = b.fixPct < 50 ? ['chip ok', 'Gesund'] : b.fixPct < 70 ? ['chip warn', 'Grenzwertig'] : ['chip bad', 'Kritisch'];
@@ -739,11 +746,12 @@ function render() {
   $('legend-note').textContent = used.length && b.incomeTotal ? 'Prozent = Anteil am Netto-Einkommen. Grün: im Rahmen, Orange: etwas darüber, Rot: deutlich darüber. Richtwerte sind grobe Orientierung, keine Regel.' : '';
 
   // Ringe
-  setRing('ring-fix', b.fixPct / 100, b.fixPct < 50 ? ok : b.fixPct < 70 ? warn : bad);
-  setRing('ring-save', b.savePct / 30, b.savePct >= 15 ? ok : b.savePct >= 10 ? warn : bad);
+  const mute = css('--ink-3');
+  setRing('ring-fix', b.fixPct / 100, open ? mute : b.fixPct < 50 ? ok : b.fixPct < 70 ? warn : bad);
+  setRing('ring-save', b.savePct / 30, open ? mute : b.savePct >= 15 ? ok : b.savePct >= 10 ? warn : bad);
   $('ring-fix-v').textContent = pct(b.fixPct); $('ring-save-v').textContent = pct(b.savePct);
-  $('fix-adv').textContent = !b.incomeTotal ? 'Noch keine Angaben.' : b.fixPct < 50 ? 'Ihre Fixkosten liegen im gesunden Bereich.' : b.fixPct < 70 ? 'Recht hoch. Ein Blick auf Verträge lohnt sich.' : 'Wenig Spielraum. Das schauen wir uns gemeinsam an.';
-  $('save-adv').textContent = !b.incomeTotal ? 'Noch keine Angaben.' : b.savePct >= 15 ? 'Sie erreichen das empfohlene Ziel.' : `Bis zum Ziel fehlen etwa ${eur(b.incomeTotal * 0.15 - b.save)} im Monat.`;
+  $('fix-adv').textContent = open ? 'Noch offen, bis Einnahmen und Ausgaben eingetragen sind.' : b.fixPct < 50 ? 'Ihre Fixkosten liegen im gesunden Bereich.' : b.fixPct < 70 ? 'Recht hoch. Ein Blick auf Verträge lohnt sich.' : 'Wenig Spielraum. Das schauen wir uns gemeinsam an.';
+  $('save-adv').textContent = open ? 'Noch offen, bis Einnahmen und Ausgaben eingetragen sind.' : b.savePct >= 15 ? 'Sie erreichen das empfohlene Ziel.' : `Bis zum Ziel fehlen etwa ${eur(b.incomeTotal * 0.15 - b.save)} im Monat.`;
   const rm = reserveMonths(b, w);
   setRing('ring-res', rm == null ? 0 : rm / 6, rm == null ? gold : rm >= 3 ? ok : rm >= 1.5 ? warn : bad);
   $('ring-res-v').innerHTML = rm == null ? '–' : `${rm >= 10 ? Math.round(rm) : String(Math.round(rm * 10) / 10).replace('.', ',')}<small>Monate</small>`;
@@ -1036,6 +1044,8 @@ $('seg').addEventListener('keydown', (e) => { // Pfeiltasten zwischen den Schrit
   if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = order[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3]; show(n); $('tab-' + n).focus(); e.preventDefault(); }
 });
 addEventListener('resize', placeIndicator);
+document.querySelector('.more-btn').addEventListener('click', (e) => { const p = $('intro-p'); p.classList.add('open'); e.currentTarget.setAttribute('aria-expanded', 'true'); });
+document.querySelectorAll('.right').forEach((rc) => rc.addEventListener('scroll', () => rc.classList.toggle('scrolled', rc.scrollTop > 4), { passive: true }));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
 
 load(); buildForms(); render(); show('budget');
