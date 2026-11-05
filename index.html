@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0A1F44">
-<title>Budgetcheck · Max Rühlmann</title>
+<title>Budgetcheck</title>
 <script src="vendor/jspdf.umd.min.js" defer></script>
 <style>
 html,body{margin:0}
@@ -79,11 +79,29 @@ h1,h2,h3{font-family:var(--fd);margin:0;text-wrap:balance}
 .advisor b{display:block;color:#fff;font-size:13.5px;font-weight:600}
 .avatar{width:36px;height:36px;border-radius:50%;border:1px solid rgba(201,162,74,.6);display:grid;place-items:center;font:700 13px var(--fd);color:#E6C77E;flex-shrink:0}
 @media (max-width:720px){.advisor .lines{display:none}}
-@media (max-width:520px){.brand p,.advisor{display:none}.btn-reset{padding:7px 11px}.top .wrap{padding-block:10px}}
+@media (max-width:520px){.brand p,.advisor .lines{display:none}.btn-reset{padding:7px 11px}.top .wrap{padding-block:10px}}
 .btn-reset{appearance:none;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:999px;
   padding:7px 13px;font:600 12.5px var(--f);cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
 .btn-reset:hover{background:rgba(255,255,255,.16)}
 .btn-reset svg{width:14px;height:14px}
+
+/* Berater frei eintragbar */
+.adv-wrap{position:relative}
+.adv-btn{appearance:none;border:none;background:none;cursor:pointer;padding:3px 3px 3px 10px;border-radius:999px;display:flex;gap:10px;align-items:center;font:inherit;color:inherit;text-align:right}
+.adv-btn:hover .avatar{border-color:var(--gold)}
+.adv-btn .lines span{display:block;font-size:12px}
+.adv-btn .avatar svg{width:15px;height:15px}
+.adv-btn.empty .lines b{font-weight:600;opacity:.85}
+.adv-pop{position:absolute;right:0;top:calc(100% + 10px);z-index:60;width:min(300px,calc(100vw - 24px));padding:14px;border-radius:16px;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid rgba(255,255,255,.8);box-shadow:0 18px 40px rgba(10,31,68,.2);color:#0B1B36;text-align:left;transform-origin:top right;transform:scale(.92);opacity:0;pointer-events:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .16s}
+.adv-pop.open{transform:none;opacity:1;pointer-events:auto}
+.adv-pop h4{margin:0 0 2px;font:700 15px -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Arial,sans-serif;letter-spacing:-.01em}
+.adv-pop p{margin:0 0 10px;font-size:12px;color:#62708A;line-height:1.4}
+.adv-pop label{display:block;font-size:11.5px;font-weight:600;color:#62708A;margin-top:8px}
+.adv-pop input{display:block;width:100%;margin-top:4px;padding:9px 11px;border:1px solid rgba(10,31,68,.15);border-radius:10px;background:#fff;color:#0B1B36;font:500 14px -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif}
+.adv-pop input:focus{outline:none;border-color:#C9A24A;box-shadow:0 0 0 3px rgba(201,162,74,.16)}
+.adv-pop .done{margin-top:12px;width:100%;appearance:none;border:none;cursor:pointer;border-radius:10px;padding:10px;font:650 13.5px -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif;color:#fff;background:linear-gradient(140deg,#0A1F44,#14305F)}
+@media print{.adv-wrap{display:none!important}}
+@media (max-width:620px){.adv-pop{position:fixed;left:12px;right:12px;top:68px;width:auto;transform-origin:top center}}
 
 /* Intro */
 .intro{padding-block:26px 8px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
@@ -323,9 +341,19 @@ footer a:hover{color:var(--gold-ink)}
       <div><h1>Budgetcheck</h1><p>Einnahmen · Ausgaben · Vermögen</p></div>
     </div>
     <div class="top-right">
-      <div class="advisor">
-        <div class="lines"><span>Ihr Berater</span><b>Max Rühlmann</b></div>
-        <div class="avatar" aria-hidden="true">MR</div>
+      <div class="adv-wrap">
+        <button type="button" class="adv-btn advisor" id="adv-btn" aria-haspopup="dialog" aria-expanded="false" title="Berater eintragen oder ändern">
+          <div class="lines"><span>Ihr Berater</span><b id="adv-name">Berater eintragen</b></div>
+          <div class="avatar" id="adv-ini" aria-hidden="true"></div>
+        </button>
+        <div class="adv-pop" id="adv-pop" role="dialog" aria-label="Berater">
+          <h4>Berater</h4>
+          <p>Wird in der Kopfzeile und im PDF angezeigt. Bleibt auf diesem Gerät gespeichert, auch für neue Kunden.</p>
+          <label for="adv-in-name">Name<input id="adv-in-name" type="text" autocomplete="name" placeholder="Vor- und Nachname"></label>
+          <label for="adv-in-phone">Telefon<input id="adv-in-phone" type="tel" autocomplete="tel" placeholder="optional"></label>
+          <label for="adv-in-mail">E-Mail<input id="adv-in-mail" type="email" autocomplete="email" placeholder="optional"></label>
+          <button type="button" class="done" id="adv-done">Fertig</button>
+        </div>
       </div>
       <button class="btn-reset" id="reset-btn" type="button" title="Alle Eingaben löschen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
@@ -482,7 +510,6 @@ footer a:hover{color:var(--gold-ink)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button type="button" id="toast-undo">Rückgängig</button></div>
 
 <script>
-const ADVISOR = { name: 'Max Rühlmann', phone: '0173 8903097', mail: 'max.ruehlmann@tecis.de' };
 const STORE_KEY = 'budgetcheck-v2', OLD_KEY = 'budgetcheck-v1';
 
 const INC = { id: 'income', label: 'Einnahmen pro Monat', color: '#1E8A63', defType: 'inc', items: [
@@ -861,7 +888,7 @@ function buildPdf() {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(230, 199, 126);
     T(name ? `Kunde: ${name}` : 'Kunde: ohne Namen', 40, 54); T(`Erstellt am ${dateStr}`, 40, 66);
     doc.setTextColor(210, 218, 232);
-    T(`Berater: ${ADVISOR.name}`, W - 40, 42, { align: 'right' }); T(`${ADVISOR.phone} · ${ADVISOR.mail}`, W - 40, 56, { align: 'right' });
+    if (ADVISOR.name.trim()) T(`Berater: ${ADVISOR.name.trim()}`, W - 40, 42, { align: 'right' }); if (advContact()) T(advContact(), W - 40, 56, { align: 'right' });
   }
   let y;
   function ensure(h) { if (y + h > H - 50) { doc.addPage(); header('Budgetcheck (Fortsetzung)'); y = 108; } }
@@ -970,7 +997,7 @@ function buildPdf() {
   const pages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
-    T(`Bitte senden an: ${ADVISOR.name} · ${ADVISOR.mail} · ${ADVISOR.phone}`, 40, H - 24);
+    { const to = [ADVISOR.name.trim(), (ADVISOR.mail || '').trim(), (ADVISOR.phone || '').trim()].filter(Boolean).join(' · '); if (to) T(`Bitte senden an: ${to}`, 40, H - 24); }
     T(`Seite ${p} / ${pages}`, W - 40, H - 24, { align: 'right' });
   }
   const slug = name ? '_' + name.replace(/[^A-Za-z0-9äöüÄÖÜß]+/g, '-').replace(/^-|-$/g, '') : '';
@@ -984,7 +1011,7 @@ async function onPdf() {
     const { blob, filename } = buildPdf();
     const file = new File([blob], filename, { type: 'application/pdf' });
     if (navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-      try { await navigator.share({ files: [file], title: 'Budgetcheck', text: 'Mein Budgetcheck für ' + ADVISOR.name }); st.className = 'status ok'; st.textContent = 'Danke! Das PDF wurde geteilt.'; return; }
+      try { await navigator.share({ files: [file], title: 'Budgetcheck', text: ADVISOR.name.trim() ? 'Mein Budgetcheck für ' + ADVISOR.name.trim() : 'Mein Budgetcheck' }); st.className = 'status ok'; st.textContent = 'Danke! Das PDF wurde geteilt.'; return; }
       catch (e) { if (e && e.name === 'AbortError') { st.textContent = ''; return; } }
     }
     const url = URL.createObjectURL(blob);
@@ -1048,6 +1075,32 @@ addEventListener('resize', placeIndicator);
 document.querySelector('.more-btn').addEventListener('click', (e) => { const p = $('intro-p'); p.classList.add('open'); e.currentTarget.setAttribute('aria-expanded', 'true'); });
 document.querySelectorAll('.right').forEach((rc) => rc.addEventListener('scroll', () => rc.classList.toggle('scrolled', rc.scrollTop > 4), { passive: true }));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+
+
+/* ---------- Berater (gemeinsam mit Budgetcheck / Vorher-Nachher) ---------- */
+const ADV_KEY = 'berater-v1';
+const ADVISOR = (() => { const d = {name:'', phone:'', mail:''}; try { return Object.assign(d, JSON.parse(localStorage.getItem(ADV_KEY) || '{}')); } catch (e) { return d; } })();
+function advInitials(n) { return (n || '').trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase(); }
+function advRender() {
+  const has = !!ADVISOR.name.trim(), btn = document.getElementById('adv-btn');
+  document.getElementById('adv-name').textContent = has ? ADVISOR.name.trim() : 'Berater eintragen';
+  document.getElementById('adv-ini').innerHTML = has ? advInitials(ADVISOR.name) : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
+  btn.classList.toggle('empty', !has);
+}
+function advContact() { return [ADVISOR.phone, ADVISOR.mail].map(x => (x || '').trim()).filter(Boolean).join(' · '); }
+(function advInit() {
+  const btn = document.getElementById('adv-btn'), pop = document.getElementById('adv-pop');
+  const map = {name:'adv-in-name', phone:'adv-in-phone', mail:'adv-in-mail'};
+  const open = o => { pop.classList.toggle('open', o); btn.setAttribute('aria-expanded', o); if (o) { Object.entries(map).forEach(([k, id]) => document.getElementById(id).value = ADVISOR[k] || ''); setTimeout(() => document.getElementById('adv-in-name').focus(), 60); } };
+  btn.addEventListener('click', e => { e.stopPropagation(); open(!pop.classList.contains('open')); });
+  pop.addEventListener('click', e => e.stopPropagation());
+  Object.entries(map).forEach(([k, id]) => document.getElementById(id).addEventListener('input', e => { ADVISOR[k] = e.target.value; try { localStorage.setItem(ADV_KEY, JSON.stringify(ADVISOR)); } catch (err) {} advRender(); if (typeof advOnChange === 'function') advOnChange(); }));
+  pop.addEventListener('keydown', e => { if (e.key === 'Enter') open(false); if (e.key === 'Escape') { open(false); btn.focus(); } });
+  document.getElementById('adv-done').addEventListener('click', () => open(false));
+  document.addEventListener('click', () => open(false));
+  window.addEventListener('storage', e => { if (e.key === ADV_KEY) { try { Object.assign(ADVISOR, JSON.parse(e.newValue || '{}')); } catch (err) {} advRender(); } });
+  advRender();
+})();
 
 load(); buildForms(); render(); show('budget');
 document.fonts && document.fonts.ready.then(placeIndicator);
