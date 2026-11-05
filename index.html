@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0A1F44">
@@ -31,7 +32,7 @@ html,body{margin:0}
   --ease:cubic-bezier(.2,.8,.2,1);
   color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root{
+@media not all{:root{
   --gold:#D4AF5A; --gold-ink:#E6C77E; --gold-soft:rgba(212,175,90,.16);
   --ok:#4CC79A; --ok-soft:rgba(76,199,154,.14); --warn:#F0A15C; --warn-soft:rgba(240,161,92,.15); --bad:#FF7B7B; --bad-soft:rgba(255,123,123,.14);
   --ink:#EEF2FA; --ink-2:#C3CCDD; --ink-3:#8E9AB2;
@@ -54,7 +55,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
     radial-gradient(60vw 50vh at 8% -5%, rgba(10,31,68,.22), transparent 70%),
     radial-gradient(50vw 45vh at 95% 5%, rgba(201,162,74,.26), transparent 70%),
     radial-gradient(70vw 50vh at 50% 110%, rgba(20,48,95,.16), transparent 70%);}
-@media (prefers-color-scheme:dark){body::before{background:
+@media not all{body::before{background:
     radial-gradient(60vw 50vh at 8% -5%, rgba(30,70,150,.45), transparent 70%),
     radial-gradient(50vw 45vh at 95% 5%, rgba(212,175,90,.16), transparent 70%),
     radial-gradient(70vw 50vh at 50% 110%, rgba(20,48,110,.35), transparent 70%);}}
