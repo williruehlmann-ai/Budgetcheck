@@ -30,7 +30,7 @@ function newKunde() {
     vertraege: [], kv: { art: '', anbieter: '' },
     rente: { vorhanden: null, erreicht: '', hochgerechnet: '', stand: '' },
     bav: { ja: null, eigen: '', arbeitgeber: '' }, vl: { arbeitgeberZahlt: null, betrag: '', genutzt: null },
-    budget: emptyState(), vorherNachher: null, bestand: {}, ziele: [], empfehlungen: [],
+    budget: emptyState(), vorherNachher: null, vnAuto: [], bestand: {}, ziele: [], empfehlungen: [],
   };
 }
 function merge(def, src) {
@@ -393,13 +393,15 @@ function showTab(t) {
   if (t === 'budget') { applyState(); show(current); }
   if (t === 'bogen') renderBogen();
   if (t === 'empf') renderEmpf();
+  document.body.classList.toggle('tab-vn', t === 'vn');
   scrollTo(0, 0);
+  if (t === 'vn') { vnPush(false, true); vnSize(); }
 }
 function markDirty() { dirtyFlag = true; const s = $('save-state'); s.textContent = 'Nicht gespeichert'; s.classList.add('dirty'); }
 function markClean(txt) { dirtyFlag = false; const s = $('save-state'); s.textContent = txt; s.classList.remove('dirty'); }
 function openApp() {
   $('start').hidden = true; $('app').hidden = false; $('top-actions').hidden = false; showMiss = false;
-  applyState(); showTab('bogen');
+  applyState(); vnPush(true); showTab('bogen');
 }
 function goHome() {
   if (dirtyFlag && !confirm('Es gibt ungespeicherte Änderungen. Trotzdem zur Startseite?')) return;
@@ -500,7 +502,9 @@ async function saveAll() {
   const d = today(), n = new Date();
   syncName(); syncContracts();
   try {
+    if (mainTab !== 'vn') vnPush();
     const pdfs = [['Abfragebogen', buildBogenPdf()], ['Budgetcheck', buildPdf().blob]];
+    if (vnReady && vnHasNachher()) pdfs.push(['Vorher-Nachher', buildVnPdf()]);
     const useDir = await ensureDir();
     if (useDir) {
       const dir = await dirHandle.getDirectoryHandle(folderName(), { create: true });
@@ -645,6 +649,174 @@ function buildBogenPdf() {
   return doc.output('blob');
 }
 
+
+/* ---------- Vorher-Nachher: bestehendes Tool im eigenen Rahmen, Daten kommen aus kunde.json ---------- */
+let vnWin = null, vnReady = false, vnPushing = false;
+const THEMA_SPARTE = { haftpflicht: 'Privathaftpflicht', hausrat: 'Hausrat', arbeitskraft: () => (K.beruf.status === 'beamter' ? 'Dienstunfähigkeit' : 'Berufsunfähigkeit'),
+  risikoleben: 'Risikoleben', wohngebaeude: 'Wohngebäude', altersvorsorge: 'Altersvorsorgedepot', investment: 'Fondssparen' };
+const de2 = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function vnInit() {
+  const f = $('vn-frame');
+  f.addEventListener('load', () => { vnWin = f.contentWindow; if (!vnWin || !vnWin.__vn) return; vnWin.__vnChanged = vnChanged; vnReady = true; vnPush(true); });
+  f.srcdoc = VN_SRC;
+}
+function vnChanged() { if (vnPushing || !vnReady) return; K.vorherNachher = JSON.parse(JSON.stringify(vnWin.__vn.get())); markDirty(); }
+function vnSize() { const f = $('vn-frame'); f.style.height = Math.max(420, innerHeight - f.getBoundingClientRect().top - 8) + 'px'; }
+addEventListener('resize', () => { if (mainTab === 'vn') vnSize(); });
+function vnPresent() {
+  if (!vnReady) return; vnWin.__vn.togglePresent();
+  const on = vnWin.__vn.presenting(), b = $('vn-present'); b.textContent = on ? 'Bearbeiten' : 'Präsentieren'; b.setAttribute('aria-pressed', String(on));
+}
+/* Verträge in die Vorher-Spalte, fehlende Themen einmalig als „neu“ vorauswählen */
+function vnPush(reset, mitThemen) {
+  if (!vnReady) return;
+  const V = vnWin.__vn; vnPushing = true;
+  try {
+    if (reset && V.presenting()) vnPresent();
+    V.set(K.vorherNachher);
+    const T = V.get(); if (reset) T.view = K.vorherNachher ? T.view : 'pick';
+    T.name = `${K.person.vorname} ${K.person.nachname}`.trim(); T.date = today();
+    K.vnAuto = Array.isArray(K.vnAuto) ? K.vnAuto : [];
+    const by = new Map();
+    K.vertraege.forEach((c) => { const n = (c.sparte || '').trim(); if (!n) return; if (!by.has(n)) by.set(n, []); by.get(n).push(c); });
+    T.items.forEach((i) => { if (i.src === 'vertrag' && !by.has(i.name)) { i.p[0] = ''; i.z[0] = 'm'; i.t[0] = ''; delete i.src; if (i.st === 'hat') i.st = ''; } });
+    const locked = new Set();
+    by.forEach((list, name) => {
+      let it = T.items.find((i) => i.name === name);
+      if (!it) { it = { id: Math.random().toString(36).slice(2, 9), g: list[0].gruppe || 'sonst', name, on: false, custom: true, st: '', c: false, p: ['', '', ''], z: ['m', 'm', 'm'], t: ['', '', ''], r: '' }; T.items.push(it); }
+      const one = list.length === 1, has = list.some((c) => !isEmpty(c.beitrag));
+      it.p[0] = !has ? '' : de2(one ? parseFloat(list[0].beitrag) || 0 : list.reduce((s, c) => s + contractMonthly(c), 0));
+      it.z[0] = one ? (list[0].zahlweise || 'm') : 'm';
+      it.t[0] = list.map((c) => [c.gesellschaft, c.leistung].map((x) => (x || '').trim()).filter(Boolean).join(' · ')).filter(Boolean).join('\n');
+      if (it.st !== 'hat' && it.r === 'Neu') it.r = '';
+      it.src = 'vertrag'; it.st = 'hat';
+      if (!K.vnAuto.includes(name)) { it.on = true; K.vnAuto.push(name); }
+      locked.add(it.id);
+    });
+    if (mitThemen) themen().filter((r) => r.status === 'fehlt').forEach((r) => {
+      const key = 'thema:' + r.id; if (K.vnAuto.includes(key)) return;
+      const nm = typeof THEMA_SPARTE[r.id] === 'function' ? THEMA_SPARTE[r.id]() : THEMA_SPARTE[r.id]; if (!nm) return;
+      const it = T.items.find((i) => i.name === nm);
+      if (it && !it.on) { it.on = true; if (!it.st) { it.st = 'neu'; if (!it.r) it.r = 'Neu'; } }
+      K.vnAuto.push(key);
+    });
+    vnWin.__vnLocked = locked;
+    K.vorherNachher = JSON.parse(JSON.stringify(T));
+    V.refresh();
+  } finally { vnPushing = false; }
+}
+function vnHasNachher() {
+  const v = K.vorherNachher; if (!v || !Array.isArray(v.items)) return false;
+  return v.items.some((i) => i.on && (i.p[1] !== '' || (i.t[1] || '').trim() || (v.v2 && (i.p[2] !== '' || (i.t[2] || '').trim())))) || (v.vort || []).some((x) => (x || '').trim());
+}
+
+/* ---------- PDF Vorher-Nachher (Querformat, gleicher Aufbau wie die anderen PDFs) ---------- */
+function buildVnPdf() {
+  const V = vnWin.__vn, T = V.get(), { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const NAVY = [10, 31, 68], GOLD = [201, 162, 74], GOLDI = [138, 103, 25], INK = [11, 27, 54], INK2 = [51, 65, 92], INK3 = [98, 112, 138], LINE = [226, 231, 240], OK = [30, 138, 99], WARN = [180, 101, 26], BAD = [178, 58, 58], INFO = [47, 94, 158];
+  const Tx = (txt, x, y, o) => doc.text(pdfText(txt), x, y, o);
+  const name = `${K.person.vorname} ${K.person.nachname}`.trim(), dateStr = deDate(today());
+  const veur = V.eur, sgn = V.sgn, pm = V.pm, mon = V.mon;
+  function header(title) {
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 70, 'F'); doc.setFillColor(...GOLD); doc.rect(0, 70, W, 2.5, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); Tx(title, 40, 34);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(230, 199, 126);
+    Tx(`${name ? `Kunde: ${name}` : 'Kunde: ohne Namen'}  ·  Erstellt am ${dateStr}  ·  alle Beiträge pro Monat`, 40, 54);
+    doc.setTextColor(210, 218, 232); Tx(`Berater: ${ADVISOR.name} · tecis`, W - 40, 34, { align: 'right' }); Tx(advContact(), W - 40, 48, { align: 'right' });
+  }
+  const v2 = !!T.v2 && V.sel().some((i) => i.p[2] !== '' || (i.t[2] || '').trim()), ks = v2 ? [0, 1, 2] : [0, 1]; // Variante 2 nur, wenn sie ausgefüllt ist
+  const { t } = V.totals(), d1 = t[1] - t[0], d2 = t[2] - t[0], kv = v2 ? T.variant : 1, dk = kv === 2 ? d2 : d1, sp = V.split(kv), vt = v2 ? ' · Variante ' + kv : '';
+  header('Vorher-Nachher'); let y = 90;
+  const tiles = [['Vorher', veur(t[0]), `pro Jahr ${veur(t[0] * 12, 0)}`, INK3], ['Nachher · Variante 1', veur(t[1]), `${sgn(d1)} pro Monat`, GOLD]];
+  if (v2) tiles.push(['Nachher · Variante 2', veur(t[2]), `${sgn(d2)} pro Monat`, NAVY]);
+  tiles.push(sp.save < -0.004
+    ? ['Ersparnis bestehende Verträge' + vt, veur(-sp.save) + ' / Monat', sp.neu > 0.004 ? `neu ${pm(sp.neu)} · unterm Strich ${pm(sp.net)}` : veur(-sp.save * 12, 0) + ' im Jahr', null]
+    : [(dk <= 0 ? 'Ersparnis' : 'Neue Absicherung') + vt, veur(Math.abs(dk)) + ' / Monat', veur(Math.abs(dk) * 12, 0) + ' im Jahr', null]);
+  const tw = (W - 80 - (tiles.length - 1) * 12) / tiles.length;
+  tiles.forEach(([l, val, s, c], i) => {
+    const x = 40 + i * (tw + 12), dark = c === null;
+    if (dark) { doc.setFillColor(...NAVY); doc.roundedRect(x, y, tw, 58, 5, 5, 'F'); doc.setFillColor(...GOLD); doc.rect(x, y, 3, 58, 'F'); }
+    else { doc.setFillColor(255, 255, 255); doc.setDrawColor(...LINE); doc.roundedRect(x, y, tw, 58, 5, 5, 'FD'); doc.setFillColor(...c); doc.rect(x, y, 3, 58, 'F'); }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...(dark ? [230, 199, 126] : INK3));
+    const ll = doc.splitTextToSize(pdfText(l.toUpperCase()), tw - 20).slice(0, 2), two = ll.length > 1;
+    ll.forEach((ln, li) => doc.text(ln, x + 11, y + (two ? 12 : 14) + li * 8));
+    doc.setFontSize(14); doc.setTextColor(...(dark ? [255, 255, 255] : INK)); Tx(val, x + 11, y + (two ? 38 : 34));
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...(dark ? [210, 218, 232] : INK3)); Tx(s, x + 11, y + (two ? 50 : 48));
+  });
+  y += 74;
+
+  // Tabelle
+  const cols = v2 ? [['Sparte', 112], ['Vorher', 62], ['Gesellschaft / Leistung', 130], ['Variante 1', 62], ['Gesellschaft / Leistung', 130], ['Variante 2', 62], ['Gesellschaft / Leistung', 130], ['Bewertung', 74]]
+    : [['Sparte', 150], ['Vorher', 72], ['Gesellschaft / Leistung', 199], ['Variante 1', 72], ['Gesellschaft / Leistung', 199], ['Bewertung', 70]];
+  const xs = []; cols.reduce((x, c) => { xs.push(x); return x + c[1]; }, 40);
+  const TW = cols.reduce((s, c) => s + c[1], 0), LH = 9.5;
+  const isV1 = (ci) => ci === 3 || ci === 4;
+  function thead() {
+    doc.setFillColor(...NAVY); doc.rect(40, y, TW, 17, 'F');
+    doc.setFillColor(...GOLD); doc.rect(xs[3], y, cols[3][1] + cols[4][1], 17, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+    cols.forEach((c, ci) => { doc.setTextColor(...(isV1(ci) ? NAVY : [255, 255, 255])); const amt = ci % 2 === 1 && ci < cols.length - 1; Tx(c[0], amt ? xs[ci] + c[1] - 6 : xs[ci] + 6, y + 11.5, amt ? { align: 'right' } : undefined); });
+    y += 17;
+  }
+  function ensure(h) { if (y + h > H - 44) { doc.addPage(); header('Vorher-Nachher (Fortsetzung)'); y = 90; thead(); } }
+  thead();
+  const rcol = { 'Besser': OK, 'Gleich': INFO, 'Neu': GOLDI, 'Gekündigt': BAD, 'Prüfen': WARN };
+  const selItems = V.sel();
+  V.GROUPS.forEach((g) => {
+    const its = selItems.filter((i) => i.g === g.id); if (!its.length) return;
+    ensure(15 + 24);
+    doc.setFillColor(238, 242, 248); doc.rect(40, y, TW, 15, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...NAVY); Tx(g.name.toUpperCase(), 46, y + 10.5); y += 15;
+    its.forEach((i) => {
+      doc.setFontSize(8);
+      const cells = [doc.splitTextToSize(pdfText(i.name), cols[0][1] - 10)];
+      ks.forEach((k) => {
+        const a = i.p[k] === '' ? ['–'] : [i.z[k] === 'e' ? '–' : veur(mon(i, k))];
+        if (i.p[k] !== '' && i.z[k] !== 'm') a.push(`${veur(V.num(i.p[k]))} ${V.ZW[i.z[k]].s}`);
+        cells.push(a); cells.push(doc.splitTextToSize(pdfText(i.t[k] || ''), cols[2 + k * 2][1] - 10));
+      });
+      cells.push([i.r || '']);
+      const h = Math.max(...cells.map((c) => c.length)) * LH + 7;
+      ensure(h);
+      doc.setFillColor(251, 246, 233); doc.rect(xs[3], y, cols[3][1] + cols[4][1], h, 'F');
+      cells.forEach((lines, ci) => {
+        const last = ci === cells.length - 1, amt = ci % 2 === 1 && !last;
+        lines.forEach((ln, li) => {
+          if (ci === 0) { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...INK); }
+          else if (amt) { doc.setFont('helvetica', li ? 'normal' : 'bold'); doc.setFontSize(li ? 6.5 : 8); doc.setTextColor(...(li ? INK3 : INK)); }
+          else if (last) { doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...(rcol[ln] || INK3)); }
+          else { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...INK2); }
+          if (amt) Tx(ln, xs[ci] + cols[ci][1] - 6, y + 10 + li * LH, { align: 'right' }); else doc.text(pdfText(ln), xs[ci] + 6, y + 10 + li * LH);
+        });
+      });
+      y += h; doc.setDrawColor(...LINE); doc.setLineWidth(0.6); doc.line(40, y, 40 + TW, y);
+    });
+  });
+  ensure(20);
+  doc.setFillColor(...NAVY); doc.rect(40, y, TW, 18, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
+  Tx('Aufwand pro Monat', 46, y + 12); ks.forEach((k) => Tx(veur(t[k]), xs[1 + k * 2] + cols[1 + k * 2][1] - 6, y + 12, { align: 'right' }));
+  y += 34;
+
+  const vort = (T.vort || []).map((x) => (x || '').trim()).filter(Boolean);
+  if (vort.length) {
+    ensure(30 + 14);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...GOLDI); Tx('DEINE VORTEILE', 40, y);
+    doc.setDrawColor(...LINE); doc.line(40 + doc.getTextWidth('DEINE VORTEILE') + 8, y - 3, W - 40, y - 3); y += 16;
+    vort.forEach((x) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...INK);
+      doc.splitTextToSize(pdfText(x), W - 110).forEach((ln, li) => { ensure(14); if (!li) { doc.setTextColor(...OK); doc.setFont('helvetica', 'bold'); doc.text('•', 46, y); doc.setTextColor(...INK); doc.setFont('helvetica', 'normal'); } doc.text(ln, 58, y); y += 13; }); y += 2; });
+    y += 6;
+  }
+  ensure(14); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
+  Tx('Alle Angaben ohne Gewähr. Maßgeblich sind die jeweiligen Versicherungsbedingungen. Werte mit „Schätzung“ beruhen auf Annahmen.', 40, y);
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
+    Tx(`tecis · ${ADVISOR.name} · ${advContact()}`, 40, H - 22); Tx(`Seite ${p} / ${pages}`, W - 40, H - 22, { align: 'right' }); }
+  doc.setProperties({ title: 'Vorher-Nachher' + (name ? ' ' + pdfText(name) : '') });
+  return doc.output('blob');
+}
+
 /* ---------- Ereignisse ---------- */
 function conv(t) { if (t.type === 'checkbox') return t.checked; if (t.dataset.t === 'number') { const n = parseFloat(t.value); return t.value === '' || !isFinite(n) ? '' : n; } return t.value; }
 document.addEventListener('input', (e) => {
@@ -684,6 +856,8 @@ document.addEventListener('click', (e) => {
   else if (act === 'goto') { showTab('bogen'); const s = $(t.dataset.sec); if (s) s.scrollIntoView({ block: 'start' }); const l = $('l-vertraege'); if (l) l.scrollIntoView({ block: 'center' }); }
   else if (act === 'pdf-bogen') { syncName(); download(`Abfragebogen_${today()}.pdf`, buildBogenPdf()); }
   else if (act === 'pdf-budget') { syncName(); syncContracts(); download(`Budgetcheck_${today()}.pdf`, buildPdf().blob); }
+  else if (act === 'vn-present') vnPresent();
+  else if (act === 'pdf-vn') { if (!vnReady) return; download(`Vorher-Nachher_${today()}.pdf`, buildVnPdf()); }
   else if (act === 'dlg-back') $('dlg').close();
   else if (act === 'dlg-save') { $('dlg').close(); saveAll(); }
   else if (act === 'miss-jump') jumpTo($('dlg')._miss[+t.dataset.i]);
@@ -696,4 +870,4 @@ document.addEventListener('change', (e) => { if (e.target.id === 'json-in') { co
 
 /* ---------- Start ---------- */
 buildForms(); lockContractRows(); render();
-renderStart(); initDir();
+vnInit(); renderStart(); initDir();

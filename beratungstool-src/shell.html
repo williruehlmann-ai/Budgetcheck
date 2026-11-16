@@ -60,8 +60,11 @@
       </section>
 
       <section id="pane-vn" hidden>
-        <div class="pane-head"><div><h2>Vorher-Nachher</h2><p>Deine Verträge und die Themen aus der Bestandsübersicht werden hier vorausgewählt.</p></div></div>
-        <div class="panel glass placeholder"><b>Kommt in Phase 3</b>Der Vergleich wird als Nächstes eingebaut. Die Verträge aus dem Abfragebogen stehen dafür schon bereit.</div>
+        <div class="vn-bar">
+          <span class="card-sub">Vorher-Werte kommen aus der Vertragsliste. Themen mit „fehlt“ sind als „neu“ vorausgewählt.</span>
+          <span class="vn-btns"><button type="button" class="btn ghost" data-act="vn-present" id="vn-present" aria-pressed="false">Präsentieren</button><button type="button" class="btn ghost" data-act="pdf-vn">Vorher-Nachher-PDF herunterladen</button></span>
+        </div>
+        <iframe id="vn-frame" title="Vorher-Nachher"></iframe>
       </section>
 
       <section id="pane-empf" hidden>

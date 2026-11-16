@@ -52,12 +52,25 @@ for a, b in du:
     n = js.count(a) + mk.count(a); assert n >= 1, a
     js = js.replace(a, b); mk = mk.replace(a, b)
 
+# Vorher-Nachher: ganzes Tool unverändert in einen eigenen Rahmen (iframe), nur Speicherung und Kopf angepasst
+import json
+vnp = vn
+vnp = sub(vnp, "function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {} }", "function save() { if (window.__vnChanged) window.__vnChanged(); }")
+vnp = sub(vnp, "  try { const raw = localStorage.getItem(STORE_KEY); if (raw) { const o = JSON.parse(raw); if (valid(o)) { S = normalize(o); return; } } } catch (e) {}\n", "")
+vnp = sub(vnp, "const ADVISOR = (() => { const d = {name:'', phone:'', mail:''}; try { return Object.assign(d, JSON.parse(localStorage.getItem(ADV_KEY) || '{}')); } catch (e) { return d; } })();", "const ADVISOR = {name:'Max Rühlmann', phone:'0173 8903097', mail:'max.ruehlmann@tecis.de'};")
+vnp = sub(vnp, " try { localStorage.setItem(ADV_KEY, JSON.stringify(ADVISOR)); } catch (err) {}", "")
+ft = cut(vnp, '  <footer>', '</footer>\n', True); vnp = sub(vnp, ft, '')
+vnp = sub(vnp, '</style>', (here/'vn_inject.css').read_text(encoding='utf-8') + '</style>')
+vnp = sub(vnp, '</body>', '<script>\n' + (here/'vn_bridge.js').read_text(encoding='utf-8') + '</script>\n</body>')
+assert 'localStorage' not in vnp and 'href=' not in vnp, 'vn rest'
+vn_src = 'const VN_SRC = ' + json.dumps(vnp, ensure_ascii=False).replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029') + ';\n'
+
 groups = cut(vn, 'const GROUPS = [', '\n];', True).replace('const GROUPS', 'const VN_GROUPS', 1)
-bc_js = groups + '\n' + js
+bc_js = groups + '\n' + vn_src + js
 app_js = (here/'app.js').read_text(encoding='utf-8')
 app_css = (here/'app.css').read_text(encoding='utf-8')
 
-own = mk + bc_js + app_js + (here/'shell.html').read_text(encoding='utf-8')
+own = mk + groups + js + vnp + app_js + (here/'shell.html').read_text(encoding='utf-8')
 left = re.findall(r'[^\n]{0,40}\b(?:Sie|Ihr|Ihre[nmrs]?)\b[^\n]{0,40}', own)
 assert not left, left
 assert 'ruehlii' not in own.lower()

@@ -133,3 +133,9 @@ dialog.dlg p{margin:6px 0 0;font-size:13.5px;color:var(--ink-3)}
 .advisor .lines span.dirty{color:#E6C77E}
 .placeholder{padding:48px 24px;text-align:center;color:var(--ink-3)}
 .placeholder b{display:block;font:700 18px var(--fd);color:var(--ink);margin-bottom:6px}
+
+/* Vorher-Nachher im eigenen Rahmen */
+.vn-bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.vn-btns{display:flex;gap:8px;flex-wrap:wrap}
+#vn-frame{display:block;width:100%;height:70vh;border:none;background:transparent;border-radius:18px}
+body.tab-vn main{padding-block:14px 0}

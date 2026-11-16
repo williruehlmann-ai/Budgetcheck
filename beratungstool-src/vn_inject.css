@@ -1,0 +1,12 @@
+
+/* Eingebettet im Beratungstool */
+.top,.who,footer{display:none!important}
+body{background:transparent;min-height:0}
+body::before{display:none}
+.wrap{max-width:none;padding-left:2px;padding-right:10px}
+.intro{padding-top:8px}
+main{padding-bottom:40px}
+.tray{top:12px;max-height:calc(100vh - 28px)}
+.side.locked input.money,.side.locked textarea{background:rgba(10,31,68,.04);color:var(--ink-2);cursor:not-allowed}
+.side.locked .zw{opacity:.7}
+.lk{font-style:normal;text-transform:none;letter-spacing:0;font-weight:600;font-size:10.5px;color:var(--ink-3);margin-left:6px}

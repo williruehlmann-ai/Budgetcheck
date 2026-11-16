@@ -91,7 +91,13 @@ async def main():
         check('Vollständigkeitscheck listet fehlenden Ort', 'Ort' in miss and await page.locator('.f.miss').count() >= 1, miss.replace('\n', ' / ')[:200])
         await page.screenshot(path=str(OUT/'06_was_fehlt.png'))
         await page.click('[data-act="dlg-back"]'); await page.fill('#f-person-adresse-ort', 'Hamburg')
-        own = [u for u in reqs if not u.startswith('file://') and not u.startswith('blob:') and not u.startswith('data:')]
+        await page.click('[data-tab="vn"]'); await page.wait_for_timeout(400)
+        vn = await page.evaluate("({ready: vnReady, sel: vnWin.__vn.sel().map(i=>[i.name,i.st,i.p[0],i.z[0]]), t0: vnWin.__vn.totals().t[0]})")
+        check('Vorher-Nachher läuft unter file:// und übernimmt Verträge', vn['ready'] and ['Privathaftpflicht','hat','60,00','j'] in vn['sel'] and ['Berufsunfähigkeit','hat','80,00','m'] in vn['sel'] and abs(vn['t0']-235) < 0.001, vn)
+        check('Themen mit „fehlt“ als neu vorausgewählt', ['Hausrat','neu','','m'] in vn['sel'] and ['Altersvorsorgedepot','neu','','m'] in vn['sel'], vn['sel'])
+        await page.screenshot(path=str(OUT/'08_vn_auswahl.png'))
+        await page.click('[data-tab="bogen"]')
+        own = [u for u in reqs if not u.startswith('file://') and not u.startswith('blob:') and not u.startswith('data:') and not u.startswith('about:')]
         check('Keine Netzwerkanfrage (file://)', len(own) == 0 and len([u for u in reqs if u.startswith('file://')]) == 1, reqs[:5])
         check('Keine Konsolenfehler', not errs, errs[:3])
         state = await page.evaluate("JSON.stringify(K)")
@@ -107,9 +113,34 @@ async def main():
         d = datetime.date.today().isoformat(); f = 'Mustermann_Erika/'
         check('Speichern legt Ordner Nachname_Vorname mit kunde.json und 2 PDFs an', ok1 and sorted(t1) == sorted([f+'kunde.json', f+f'Abfragebogen_{d}.pdf', f+f'Budgetcheck_{d}.pdf']), sorted(t1))
         await page.fill('#f-person-adresse-ort', 'Lübeck')
+        await page.click('[data-tab="vn"]'); fr = page.frame_locator('#vn-frame')
+        await fr.locator('.tray [data-go="compare"]').click()
+        card = lambda n: fr.locator(f'article.vcard:has(.vc-name:has-text("{n}"))')
+        check('Vorher aus Vertrag ist gesperrt, neue Sparte nicht', await card('Privathaftpflicht').locator('input[data-k="0"]').get_attribute('readonly') is not None and await card('Hausrat').locator('input[data-k="0"]').get_attribute('readonly') is None)
+        for n, v, z in [('Privathaftpflicht','48','j'),('Berufsunfähigkeit','75','m'),('Fondssparen','150','m'),('Hausrat','6','m'),('Altersvorsorgedepot','100','m')]:
+            await card(n).locator('input[data-k="1"]').fill(v); await card(n).locator('input[data-k="1"]').dispatch_event('change')
+            if z != 'm': await card(n).locator('select[data-z="1"]').select_option(z)
+        await card('Berufsunfähigkeit').locator('textarea[data-t="1"]').fill('Neue Gesellschaft, BU-Rente 2.000 €')
+        await card('Berufsunfähigkeit').locator('.rate button[data-r="Besser"]').click()
+        r = await page.evaluate("(()=>{const V=vnWin.__vn,t=V.totals().t,s=V.split(1);return {t0:t[0],t1:t[1],save:s.save,neu:s.neu,net:s.net,k:K.vorherNachher.items.filter(i=>i.on).length,dirty:dirtyFlag}})()")
+        check('Vorher-Nachher: vorher 235, nachher 335, Ersparnis 6, neu 106, unterm Strich +100', abs(r['t0']-235)<.001 and abs(r['t1']-335)<.001 and abs(r['save']+6)<.001 and abs(r['neu']-106)<.001 and abs(r['net']-100)<.001, r)
+        check('Vorher-Nachher-Eingaben landen in kunde.json-Daten', r['k'] == 5 and r['dirty'])
+        rr = await page.evaluate("Object.fromEntries(vnWin.__vn.sel().map(i=>[i.name,i.r]))")
+        check('Bewertung: bestehende Verträge ohne „Neu“, neue Sparten mit „Neu“', rr['Privathaftpflicht']=='' and rr['Fondssparen']=='' and rr['Berufsunfähigkeit']=='Besser' and rr['Hausrat']=='Neu', rr)
+        await page.wait_for_timeout(300)
+        await page.screenshot(path=str(OUT/'09_vn_vergleich.png'))
+        await fr.locator('#view-compare [data-go="result"]').click(); await page.wait_for_timeout(1200)
+        await fr.locator('#vort textarea[data-v="0"]').fill('Mehr Leistung in der BU für weniger Beitrag')
+        await page.screenshot(path=str(OUT/'10_vn_ergebnis.png'))
+        # abwählen bleibt abgewählt, Vertragsänderung kommt an
+        await fr.locator('#seg .tab[data-view="pick"]').click(); await fr.locator('.ti:has(.n:has-text("Hausrat")) .x').click()
+        await page.click('[data-tab="bogen"]'); await page.fill('[data-list="vertraege"][data-i="0"][data-k="beitrag"]', '72'); await page.click('[data-tab="vn"]')
+        r2 = await page.evaluate("(()=>{const s=vnWin.__vn.sel();return {hausrat:s.some(i=>i.name==='Hausrat'),phv:s.find(i=>i.name==='Privathaftpflicht').p[0],t0:vnWin.__vn.totals().t[0]}})()")
+        check('Abgewählte Sparte bleibt abgewählt, geänderter Vertrag kommt in Vorher an', r2['hausrat'] is False and r2['phv'] == '72,00' and abs(r2['t0']-236)<.001, r2)
+        await page.click('[data-tab="bogen"]')
         ok2 = await page.evaluate("saveAll()"); t2 = await page.evaluate(tree)
         new = sorted(set(t2) - set(t1))
-        check('Zweites Speichern: neue Dateien _v2 und Archiv', ok2 and f+f'Abfragebogen_{d}_v2.pdf' in new and f+f'Budgetcheck_{d}_v2.pdf' in new and any(n.startswith(f+'archiv/kunde_'+d) for n in new) and len(new) == 3, new)
+        check('Zweites Speichern: neue Dateien _v2, Vorher-Nachher-PDF und Archiv', ok2 and f+f'Abfragebogen_{d}_v2.pdf' in new and f+f'Budgetcheck_{d}_v2.pdf' in new and f+f'Vorher-Nachher_{d}.pdf' in new and any(n.startswith(f+'archiv/kunde_'+d) for n in new) and len(new) == 4, new)
         check('Zweites Speichern überschreibt keine PDF', all(t1[k] == t2[k] for k in t1 if k.endswith('.pdf')))
         arch = [n for n in new if '/archiv/' in n][0]
         check('Archiv enthält die alte kunde.json unverändert', t2[arch] == t1[f+'kunde.json'])
@@ -123,23 +154,29 @@ async def main():
         loaded = await page.evaluate("JSON.stringify(K)")
         check('Kunde laden stellt alle Eingaben vollständig wieder her', json.loads(loaded) == json.loads(saved))
         check('Geladen: Felder sichtbar gefüllt', await page.input_value('#f-person-vorname') == 'Erika' and await page.input_value('[data-list="vertraege"][data-i="1"][data-k="beitrag"]') == '80' and await page.input_value('#f-gesundheit-allergien-text') == 'HEUSCHNUPFENGEHEIM')
-        await page.click('[data-tab="budget"]'); check('Geladen: Budgetcheck gefüllt', await page.input_value('#ex-rent') == '800' and await page.input_value('#ex-liability') == '5')
+        await page.click('[data-tab="budget"]'); check('Geladen: Budgetcheck gefüllt', await page.input_value('#ex-rent') == '800' and await page.input_value('#ex-liability') == '6')
+        await page.click('[data-tab="vn"]'); await page.wait_for_timeout(300)
+        r3 = await page.evaluate("(()=>{const V=vnWin.__vn,t=V.totals().t;return {n:V.sel().length,t1:t[1],vort:V.get().vort[0],view:V.get().view}})()")
+        check('Geladen: Vorher-Nachher wiederhergestellt', r3['n'] == 4 and abs(r3['t1']-329)<.001 and r3['vort'].startswith('Mehr Leistung'), r3)
         check('Keine Konsolenfehler (Speichern/Laden)', not errs2, errs2[:3])
         # PDFs prüfen
         for n in t2:
             if n.endswith('.pdf'): (OUT/n.split('/')[-1]).write_bytes(base64.b64decode(t2[n]))
         (OUT/'kunde.json').write_bytes(base64.b64decode(t2[f+'kunde.json']))
         texts = {}
-        for n in [f'Abfragebogen_{d}_v2.pdf', f'Budgetcheck_{d}_v2.pdf']:
+        for n in [f'Abfragebogen_{d}_v2.pdf', f'Budgetcheck_{d}_v2.pdf', f'Vorher-Nachher_{d}.pdf']:
             texts[n] = subprocess.run(['pdftotext', '-layout', str(OUT/n), '-'], capture_output=True, text=True).stdout
             raw = (OUT/n).read_bytes().decode('latin1')
             bad = [w for w in ['INTERNENOTIZGEHEIM', 'EMPFOHLENERNAME', 'EMPFNOTIZGEHEIM', 'HEUSCHNUPFENGEHEIM', 'Ruehlii', 'ruehlii'] if w in texts[n] or w in raw]
             check(f'{n}: keine Notizen, Empfehlungen, Gesundheitsdaten, kein Ruehlii', not bad, bad)
-            subprocess.run(['pdftoppm', '-png', '-r', '60', str(OUT/n), str(OUT/('pdf_' + n.split('_')[0]))])
+            subprocess.run(['pdftoppm', '-png', '-r', '70', str(OUT/n), str(OUT/('pdf_' + n.split('_')[0]))])
         tb = texts[f'Abfragebogen_{d}_v2.pdf']
         check('Bogen-PDF enthält Kundendaten, Verträge, Themen, Ziele', all(w in tb for w in ['Erika Mustermann', 'Lübeck', 'Privathaftpflicht', 'Muster AG', 'THEMEN FÜR DEN FOLGETERMIN', 'Altersvorsorge', 'Eigentumswohnung in Hamburg', 'tecis']), [w for w in ['Erika Mustermann','Lübeck','Privathaftpflicht','Muster AG','THEMEN FÜR DEN FOLGETERMIN','Altersvorsorge','Eigentumswohnung in Hamburg','tecis'] if w not in tb])
         tc = texts[f'Budgetcheck_{d}_v2.pdf']
-        check('Budgetcheck-PDF enthält Summen', all(w in tc.replace(' ', ' ') for w in ['2.500 €', '1.335 €', '1.165 €', 'Erika Mustermann']), tc[:300])
+        check('Budgetcheck-PDF enthält Summen', all(w in tc.replace(' ', ' ') for w in ['2.500 €', '1.336 €', '1.164 €', 'Erika Mustermann']), tc[:300])
+        tv = texts[f'Vorher-Nachher_{d}.pdf'].replace('\u00a0', ' ')
+        need = ['Erika Mustermann', '236,00 €', '329,00 €', 'Privathaftpflicht', 'Muster AG', 'BU-Rente', 'Besser', 'Mehr Leistung in der BU', 'Aufwand pro Monat', 'tecis']
+        check('Vorher-Nachher-PDF enthält Summen, Sparten, Leistung, Bewertung, Vorteile', all(w in tv for w in need) and 'Hausrat' not in tv, [w for w in need if w not in tv])
         kj = (OUT/'kunde.json').read_text()
         check('kunde.json enthält Notizen und Empfehlungen', 'INTERNENOTIZGEHEIM' in kj and 'EMPFOHLENERNAME' in kj)
         await br.close()
