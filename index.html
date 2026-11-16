@@ -84,6 +84,16 @@ h1,h2,h3{font-family:var(--fd);margin:0;text-wrap:balance}
   padding:7px 13px;font:600 12.5px var(--f);cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
 .btn-reset:hover{background:rgba(255,255,255,.16)}
 .btn-reset svg{width:14px;height:14px}
+/* Check öffnen / speichern */
+.menu-wrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 10px);z-index:60;min-width:250px;padding:6px;border-radius:14px;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid rgba(255,255,255,.8);box-shadow:0 18px 40px rgba(10,31,68,.22);transform-origin:top right;transform:scale(.92);opacity:0;pointer-events:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .16s}
+.menu.open{transform:none;opacity:1;pointer-events:auto}
+.menu button{appearance:none;border:none;background:none;width:100%;text-align:left;padding:9px 10px;border-radius:9px;font:550 13.5px var(--f);color:#0B1B36;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+.menu button:hover,.menu button:focus-visible{background:rgba(10,31,68,.07);outline:none}
+.menu button svg{width:16px;height:16px;flex-shrink:0;margin-top:2px;color:#8A6719}
+.menu button small{display:block;color:#62708A;font-size:11.5px;font-weight:450;line-height:1.35}
+@media (max-width:520px){.btn-reset .bt{display:none}.btn-reset{padding:8px 10px}.top-right{gap:8px}.menu{position:fixed;left:12px;right:12px;top:64px;min-width:0;transform-origin:top center}}
+@media print{.menu-wrap{display:none!important}}
 
 /* Berater frei eintragbar */
 .adv-wrap{position:relative}
@@ -355,9 +365,20 @@ footer a:hover{color:var(--gold-ink)}
           <button type="button" class="done" id="adv-done">Fertig</button>
         </div>
       </div>
+      <div class="menu-wrap">
+        <button class="btn-reset" id="file-btn" type="button" aria-haspopup="true" aria-expanded="false" title="Check öffnen oder speichern">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span class="bt">Öffnen</span>
+        </button>
+        <div class="menu" id="file-menu" role="menu">
+          <button type="button" role="menuitem" data-file="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M4 3h16"/></svg><span>Check öffnen<small>Budgetcheck-PDF oder gespeicherte Datei laden und im Termin durchgehen</small></span></button>
+          <button type="button" role="menuitem" data-file="save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg><span>Als Datei speichern<small>Alle Eingaben sichern, z. B. für den Vault</small></span></button>
+        </div>
+        <input type="file" id="file-in" accept=".pdf,.json,application/pdf,application/json" hidden>
+      </div>
       <button class="btn-reset" id="reset-btn" type="button" title="Alle Eingaben löschen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
-        Neu starten
+        <span class="bt">Neu starten</span>
       </button>
     </div>
   </div>
@@ -869,6 +890,53 @@ function clearGroup(kind, gid) {
   toast(`„${g.label}“ geleert`, () => { S = snap; applyState(); });
 }
 
+/* ---------- Check öffnen / speichern ---------- */
+const DATA_TAG = 'BCDATA1:';
+function packState() { return btoa(unescape(encodeURIComponent(JSON.stringify({ app: 'budgetcheck', ver: 2, s: S })))); }
+function unpackState(b64) { const o = JSON.parse(decodeURIComponent(escape(atob(b64)))); return o && o.app === 'budgetcheck' ? o.s : null; }
+function validState(o) { return o && typeof o === 'object' && o.v && typeof o.v === 'object' && !Array.isArray(o.v); }
+function readCheck(buf) {
+  const head = new Uint8Array(buf, 0, Math.min(8, buf.byteLength)), isJson = String.fromCharCode(...head).trim().startsWith('{');
+  const txt = new TextDecoder(isJson ? 'utf-8' : 'latin1').decode(buf);
+  if (isJson) { const o = JSON.parse(txt); return o && o.app === 'budgetcheck' ? o.s : o; }
+  const m = txt.match(/BCDATA1:([A-Za-z0-9+\/=]+)/);
+  return m ? unpackState(m[1]) : null;
+}
+function saveCheckFile() {
+  const name = (S.name || '').trim(), slug = name ? '_' + name.replace(/[^A-Za-z0-9äöüÄÖÜß]+/g, '-').replace(/^-|-$/g, '') : '';
+  const blob = new Blob([JSON.stringify({ app: 'budgetcheck', ver: 2, saved: new Date().toISOString(), s: S }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Budgetcheck${slug}_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast('Check als Datei gespeichert');
+}
+async function openCheckFile(f) {
+  try {
+    const buf = await f.arrayBuffer(), data = readCheck(buf), isJson = !/%PDF/.test(String.fromCharCode(...new Uint8Array(buf, 0, Math.min(8, buf.byteLength))));
+    if (!validState(data)) {
+      toast(isJson ? 'Diese Datei ist kein gespeicherter Budgetcheck.' : 'In diesem PDF stecken keine Eingaben. Nur PDFs aus dem aktuellen Budgetcheck lassen sich wieder öffnen.');
+      return;
+    }
+    const snap = snapshot();
+    S = Object.assign(emptyState(), data); applyState(); show('budget');
+    toast(`${S.name ? S.name : 'Check'} geöffnet`, () => { S = snap; applyState(); });
+  } catch (e) { toast('Die Datei konnte nicht geöffnet werden.'); }
+}
+(function fileMenuInit() {
+  const btn = $('file-btn'), menu = $('file-menu'), inp = $('file-in');
+  const open = (o) => { menu.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); };
+  btn.addEventListener('click', (e) => { e.stopPropagation(); open(!menu.classList.contains('open')); });
+  menu.addEventListener('click', (e) => {
+    e.stopPropagation(); const b = e.target.closest('[data-file]'); if (!b) return; open(false);
+    if (b.dataset.file === 'open') inp.click(); else saveCheckFile();
+  });
+  document.addEventListener('click', () => open(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') open(false); });
+  inp.addEventListener('change', () => { const f = inp.files[0]; inp.value = ''; if (f) openCheckFile(f); });
+  // Datei einfach auf die Seite ziehen
+  addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+  addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (!f) return; e.preventDefault(); if (/\.(pdf|json)$/i.test(f.name)) openCheckFile(f); });
+})();
+
 /* ---------- PDF ---------- */
 function pdfText(s) { return String(s).replace(/[  ]/g, ' ').replace(/−/g, '-'); }
 function buildPdf() {
@@ -1000,6 +1068,8 @@ function buildPdf() {
     { const to = [ADVISOR.name.trim(), (ADVISOR.mail || '').trim(), (ADVISOR.phone || '').trim()].filter(Boolean).join(' · '); if (to) T(`Bitte senden an: ${to}`, 40, H - 24); }
     T(`Seite ${p} / ${pages}`, W - 40, H - 24, { align: 'right' });
   }
+  // Eingaben unsichtbar mitspeichern, damit das PDF später wieder geöffnet werden kann
+  doc.setProperties({ title: 'Budgetcheck' + (name ? ' ' + pdfText(name) : ''), keywords: DATA_TAG + packState() });
   const slug = name ? '_' + name.replace(/[^A-Za-z0-9äöüÄÖÜß]+/g, '-').replace(/^-|-$/g, '') : '';
   return { blob: doc.output('blob'), filename: `Budgetcheck${slug}_${d.toISOString().slice(0, 10)}.pdf` };
 }
