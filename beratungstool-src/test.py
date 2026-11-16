@@ -44,14 +44,10 @@ async def main():
         check('Summe 95 % wird als Fehler gezeigt', '95 %' in await page.inner_text('#d-sum'), await page.inner_text('#d-sum'))
         await page.fill('#f-beruf-anteile-reisen', '10')
         check('Summe 100 % ok', '100 %' in await page.inner_text('#d-sum'))
-        # BMI
-        await page.click('[data-act="iaa"]')
-        await page.fill('#f-gesundheit-groesse', '180'); await page.fill('#f-gesundheit-gewicht', '80')
-        check('BMI 80 kg / 180 cm = 24,7', await page.inner_text('#d-bmi') == '24,7', await page.inner_text('#d-bmi'))
-        await page.fill('#f-gesundheit-gewicht', '102'); check('BMI 102 kg / 180 cm = 31,5', await page.inner_text('#d-bmi') == '31,5', await page.inner_text('#d-bmi'))
-        await page.fill('#f-gesundheit-gewicht', '80')
-        await page.click('[data-act="yn"][data-p="gesundheit.allergien.ja"][data-v="1"]')
-        await page.fill('#f-gesundheit-allergien-text', 'HEUSCHNUPFENGEHEIM')
+        # IAA fest aus, Rechenfunktion bleibt korrekt
+        check('IAA-Teil ist nicht sichtbar', await page.locator('#s3').count() == 0 and await page.locator('[data-act="iaa"]').count() == 0)
+        b = await page.evaluate("(()=>{K.gesundheit.groesse=180;K.gesundheit.gewicht=80;const a=bmi();K.gesundheit.groesse='';K.gesundheit.gewicht='';K.gesundheit.allergien.text='HEUSCHNUPFENGEHEIM';return a})()")
+        check('BMI-Rechnung 80 kg / 180 cm = 24,7', b == 24.7, b)
         # Beamter-Hinweis
         await page.select_option('#f-beruf-status', 'beamter')
         check('Beamter zeigt Hinweis DU-Klausel', 'DU-Klausel prüfen' in await page.inner_text('#s2'))
@@ -75,11 +71,8 @@ async def main():
         check('Budget: Sparquote 6 %, Fixkostenquote 35 %', vals['k-save']=='6 %' and vals['k-fix']=='35 %', vals)
         check('Notgroschen 3000 / 1185 = 2,5 Monate', vals['ring-res-v'].startswith('2,5'), vals['ring-res-v'])
         await page.screenshot(path=str(OUT/'04_budget.png'))
-        # Empfehlungen + Notiz
-        await page.click('[data-tab="empf"]'); await page.click('[data-act="add"][data-list="empfehlungen"]')
-        await page.fill('[data-list="empfehlungen"][data-i="0"][data-k="name"]', 'EMPFOHLENERNAME'); await page.fill('[data-list="empfehlungen"][data-i="0"][data-k="notiz"]', 'EMPFNOTIZGEHEIM')
+        check('Kein Empfehlungen-Tab mehr', await page.locator('[data-tab="empf"]').count() == 0 and await page.locator('.mtab').count() == 3)
         await page.evaluate("K.notizen='INTERNENOTIZGEHEIM'")
-        await page.screenshot(path=str(OUT/'05_empfehlungen.png'))
         check('Ein Feld einmal eingeben: Bogen zeigt Budget-Summe', True)
         await page.click('[data-tab="bogen"]')
         txt = (await page.inner_text('#d-budget')).replace(' ', ' ')
@@ -153,7 +146,7 @@ async def main():
         await page.click('[data-act="open-client"][data-name="Mustermann_Erika"]'); await page.wait_for_selector('#f-person-vorname')
         loaded = await page.evaluate("JSON.stringify(K)")
         check('Kunde laden stellt alle Eingaben vollständig wieder her', json.loads(loaded) == json.loads(saved))
-        check('Geladen: Felder sichtbar gefüllt', await page.input_value('#f-person-vorname') == 'Erika' and await page.input_value('[data-list="vertraege"][data-i="1"][data-k="beitrag"]') == '80' and await page.input_value('#f-gesundheit-allergien-text') == 'HEUSCHNUPFENGEHEIM')
+        check('Geladen: Felder sichtbar gefüllt', await page.input_value('#f-person-vorname') == 'Erika' and await page.input_value('[data-list="vertraege"][data-i="1"][data-k="beitrag"]') == '80' )
         await page.click('[data-tab="budget"]'); check('Geladen: Budgetcheck gefüllt', await page.input_value('#ex-rent') == '800' and await page.input_value('#ex-liability') == '6')
         await page.click('[data-tab="vn"]'); await page.wait_for_timeout(300)
         r3 = await page.evaluate("(()=>{const V=vnWin.__vn,t=V.totals().t;return {n:V.sel().length,t1:t[1],vort:V.get().vort[0],view:V.get().view}})()")
@@ -178,7 +171,7 @@ async def main():
         need = ['Erika Mustermann', '236,00 €', '329,00 €', 'Privathaftpflicht', 'Muster AG', 'BU-Rente', 'Besser', 'Mehr Leistung in der BU', 'Aufwand pro Monat', 'tecis']
         check('Vorher-Nachher-PDF enthält Summen, Sparten, Leistung, Bewertung, Vorteile', all(w in tv for w in need) and 'Hausrat' not in tv, [w for w in need if w not in tv])
         kj = (OUT/'kunde.json').read_text()
-        check('kunde.json enthält Notizen und Empfehlungen', 'INTERNENOTIZGEHEIM' in kj and 'EMPFOHLENERNAME' in kj)
+        check('kunde.json ist lesbares JSON mit schemaVersion', json.loads(kj)['schemaVersion'] == 1 and json.loads(kj)['gesundheit']['aktiv'] is False)
         await br.close()
     bad = [r for r in res if not r[1]]
     print(f'\n{len(res)-len(bad)} von {len(res)} Prüfungen bestanden'); sys.exit(1 if bad else 0)

@@ -202,7 +202,7 @@ const REQ = [
   ['gesundheit.hobbys.ja', 'Gefährliche Hobbys', 's3', iaa],
   ['kv.art', 'Krankenversicherung', 's4'],
 ];
-const SEC_NAME = { s1: 'Persönliche Daten', s2: 'Beruf & Ausbildung', s3: 'IAA-Gesundheit', s4: 'Bestand & Finanzen', empf: 'Empfehlungen' };
+const SEC_NAME = { s1: 'Persönliche Daten', s2: 'Beruf & Ausbildung', s3: 'IAA-Gesundheit', s4: 'Bestand & Finanzen' };
 const isReq = (p) => { const r = REQ.find((x) => x[0] === p); return !!r && (!r[3] || r[3]()); };
 function missing() {
   const out = REQ.filter((r) => (!r[3] || r[3]()) && isEmpty(getP(K, r[0]))).map((r) => ({ label: r[1], sec: r[2], p: r[0] }));
@@ -210,7 +210,6 @@ function missing() {
   const sum = anteilSumme(); if (sum != null && Math.round(sum) !== 100) out.push({ label: `Tätigkeitsanteile ergeben ${Math.round(sum)} % statt 100 %`, sec: 's2', p: 'beruf.anteile.buero' });
   K.vertraege.forEach((c, i) => { if (!c.sparte || isEmpty(c.beitrag)) out.push({ label: `Vertrag ${i + 1}: Sparte und Beitrag`, sec: 's4', el: 'l-vertraege' }); });
   if (!K.ziele.some((z) => (z.text || '').trim())) out.push({ label: 'Mindestens ein Ziel, Wunsch oder Traum', sec: 's4', el: 'l-ziele' });
-  K.empfehlungen.forEach((e, i) => { if (!(e.name || '').trim()) out.push({ label: `Empfehlung ${i + 1}: Name`, sec: 'empf', el: 'empf' }); });
   return out;
 }
 
@@ -329,7 +328,7 @@ function renderBogen() {
   </section>`;
 
   const R = K.rente;
-  const s4 = `<section class="panel glass sec" id="s4">${secHead(4, 'Bestand & Finanzen', 'Was du schon hast und wohin du willst')}
+  const s4 = `<section class="panel glass sec" id="s4">${secHead(3, 'Bestand & Finanzen', 'Was du schon hast und wohin du willst')}
     ${sub('Bestehende Verträge')}${listHTML('vertraege')}
     ${sub('Krankenversicherung & Rente')}
     <div class="fg">
@@ -351,7 +350,7 @@ function renderBogen() {
   </section>`;
 
   const keep = document.activeElement && document.activeElement.id, y = scrollY;
-  $('bogen').innerHTML = s1 + s2 + s3 + s4;
+  $('bogen').innerHTML = s1 + s2 + s4; // IAA-Gesundheit (s3) ist fest ausgeschaltet
   updateDerived();
   if (keep && $(keep) && $('bogen').contains($(keep))) $(keep).focus({ preventScroll: true });
   scrollTo(0, y);
@@ -378,21 +377,13 @@ function updateDerived() {
   if (showMiss) document.querySelectorAll('#bogen .f[data-f]').forEach((f) => { const p = f.dataset.f; f.classList.toggle('miss', isReq(p) && isEmpty(p === 'budget.v.in-salary' ? nettoMonat() : getP(K, p))); });
 }
 
-/* ---------- Empfehlungen ---------- */
-function renderEmpf() {
-  $('empf').innerHTML = `<section class="panel glass">
-    <div class="hint info" style="margin-bottom:16px"><span><b>Daten Dritter.</b> Kontakt erst nach Einverständnis der empfohlenen Person. Diese Liste steht nur in der kunde.json und in keinem Kunden-PDF.</span></div>
-    ${listHTML('empfehlungen')}</section>`;
-}
-
 /* ---------- Tabs, Start, Status ---------- */
 function showTab(t) {
   mainTab = t;
   document.querySelectorAll('.mtab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-  ['bogen', 'budget', 'vn', 'empf'].forEach((p) => { $('pane-' + p).hidden = p !== t; });
+  ['bogen', 'budget', 'vn'].forEach((p) => { $('pane-' + p).hidden = p !== t; });
   if (t === 'budget') { applyState(); show(current); }
   if (t === 'bogen') renderBogen();
-  if (t === 'empf') renderEmpf();
   document.body.classList.toggle('tab-vn', t === 'vn');
   scrollTo(0, 0);
   if (t === 'vn') { vnPush(false, true); vnSize(); }
@@ -448,7 +439,7 @@ async function renderStart() {
   const dirTxt = dirState === 'ok' ? `<span class="dot-s ok"></span>Verbunden: ${esc(dirHandle.name)}` : dirState === 'prompt' ? `<span class="dot-s warn"></span>${esc(dirHandle.name)}: Zugriff bestätigen` : '<span class="dot-s"></span>Noch kein Ordner verbunden';
   const dirBtn = dirState === 'prompt' ? '<button type="button" class="btn navy" data-act="dir-confirm">Zugriff bestätigen</button>' : `<button type="button" class="btn line" data-act="dir-pick">${dirState === 'ok' ? 'Anderen Ordner wählen' : 'Ordner „Kunden“ wählen'}</button>`;
   $('start').innerHTML = `<div class="start">
-    <div><h2>Beratungstool</h2><p class="lead">Abfragebogen, Budgetcheck, Vorher-Nachher und Empfehlungen an einem Ort. Alles bleibt auf diesem Mac.</p></div>
+    <div><h2>Beratungstool</h2><p class="lead">Abfragebogen, Budgetcheck und Vorher-Nachher an einem Ort. Alles bleibt auf diesem Mac.</p></div>
     <div class="start-btns">
       <button type="button" class="bigbtn gold" data-act="new"><b>Neuer Kunde</b><span>Leeren Abfragebogen starten</span></button>
       <button type="button" class="bigbtn glass" data-act="load"><b>Kunde laden</b><span>kunde.json aus dem Kundenordner öffnen</span></button>
@@ -468,7 +459,7 @@ function loadJson(txt) {
   if (!o || o.app !== 'beratungstool') { toast('Das ist keine kunde.json aus dem Beratungstool.'); return false; }
   if (o.verschluesselt) { toast('Diese Datei ist verschlüsselt. Das Entsperren kommt mit dem Passwortschutz.'); return false; }
   if (o.schemaVersion > SCHEMA) { toast('Die Datei stammt aus einer neueren Version des Tools.'); return false; }
-  K = merge(newKunde(), o); K.schemaVersion = SCHEMA; K.budget = Object.assign(emptyState(), K.budget); S = K.budget;
+  K = merge(newKunde(), o); K.schemaVersion = SCHEMA; K.gesundheit.aktiv = false; K.budget = Object.assign(emptyState(), K.budget); S = K.budget;
   openApp(); markClean('Geladen'); return true;
 }
 async function openClient(name) {
@@ -491,7 +482,6 @@ function trySave() {
 }
 function jumpTo(x) {
   $('dlg').close();
-  if (x.sec === 'empf') { showTab('empf'); return; }
   showTab('bogen');
   const el = x.p ? $(fid(x.p)) : $(x.el);
   const target = el || $(x.sec);
@@ -820,7 +810,7 @@ function buildVnPdf() {
 /* ---------- Ereignisse ---------- */
 function conv(t) { if (t.type === 'checkbox') return t.checked; if (t.dataset.t === 'number') { const n = parseFloat(t.value); return t.value === '' || !isFinite(n) ? '' : n; } return t.value; }
 document.addEventListener('input', (e) => {
-  const t = e.target; if (!t.closest || !t.closest('#bogen, #empf')) return;
+  const t = e.target; if (!t.closest || !t.closest('#bogen')) return;
   if (t.dataset.p === 'budget.v.in-salary') { if (t.value === '') delete S.v['in-salary']; else S.v['in-salary'] = t.value; delete S.iv['in-salary']; }
   else if (t.dataset.p) setP(K, t.dataset.p, conv(t));
   else if (t.dataset.list) {
@@ -863,7 +853,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'miss-jump') jumpTo($('dlg')._miss[+t.dataset.i]);
 });
 function rerenderList(path, focusLast) {
-  if (path === 'empfehlungen') renderEmpf(); else renderBogen();
+  renderBogen();
   if (focusLast) { const el = $('l-' + path.replace(/[.]/g, '-')); const rows = el ? el.querySelectorAll('.lr') : []; const f = rows.length ? rows[rows.length - 1].querySelector('.inp') : null; if (f) f.focus({ preventScroll: true }); }
 }
 document.addEventListener('change', (e) => { if (e.target.id === 'json-in') { const f = e.target.files[0]; e.target.value = ''; if (f) f.text().then(loadJson); } });
