@@ -147,7 +147,7 @@ function anteilSumme() {
   if (vals.every(isEmpty)) return null;
   return vals.reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
-const nettoMonat = () => { const v = S.v['in-salary']; if (isEmpty(v)) return ''; const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? (S.iv['in-salary'] === 'y' ? Math.round(n / 12 * 100) / 100 : n) : ''; };
+const nettoMonat = () => { const v = S.v['in-salary']; if (isEmpty(v)) return ''; const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? (ivOf('in-salary') ? Math.round(n / IV[ivOf('in-salary')].d * 100) / 100 : n) : ''; };
 
 /* ---------- Bestandsübersicht ---------- */
 const BESTAND = [

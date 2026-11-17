@@ -186,8 +186,9 @@ input.money::-webkit-outer-spin-button,input.money::-webkit-inner-spin-button{-w
 input.money::placeholder{color:var(--ink-3);font-weight:400}
 .money-wrap.noiv input.money{padding-right:26px}
 .money-wrap .cur{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink-3);pointer-events:none}
-.iv{position:absolute;right:4px;top:50%;transform:translateY(-50%);appearance:none;border:none;cursor:pointer;border-radius:7px;padding:4px 6px;
-  font:600 10.5px var(--f);color:var(--ink-3);background:transparent}
+.iv{position:absolute;right:4px;top:50%;transform:translateY(-50%);appearance:none;-webkit-appearance:none;border:none;cursor:pointer;border-radius:7px;padding:4px 6px;
+  font:600 10.5px var(--f);color:var(--ink-3);background:transparent;text-align:right;text-align-last:right}
+.iv:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 .iv:hover{background:var(--track)}
 .iv.y{background:var(--gold-soft);color:var(--gold-ink)}
 .x{position:absolute;left:5px;top:50%;transform:translateY(-50%) scale(.8);opacity:0;pointer-events:none;appearance:none;border:none;cursor:pointer;
@@ -388,7 +389,7 @@ footer a:hover{color:var(--gold-ink)}
   <section class="intro">
     <div>
       <h2>Ihr persönlicher Finanzüberblick</h2>
-      <p id="intro-p">Tragen Sie Ihre Beträge ein, die Auswertung rechnet sofort mit.<span class="more"> Jährliche Kosten können Sie mit einem Tipp auf „€/Mon.“ als Jahresbetrag eingeben. Ihre Eingaben bleiben nur auf diesem Gerät, bis Sie mir das PDF senden.</span> <button type="button" class="link more-btn" aria-expanded="false" aria-controls="intro-p">Mehr</button></p>
+      <p id="intro-p">Tragen Sie Ihre Beträge ein, die Auswertung rechnet sofort mit.<span class="more"> Vierteljährliche, halbjährliche oder jährliche Beiträge wählen Sie über „€/Mon.“ neben dem Betrag aus. Ihre Eingaben bleiben nur auf diesem Gerät, bis Sie mir das PDF senden.</span> <button type="button" class="link more-btn" aria-expanded="false" aria-controls="intro-p">Mehr</button></p>
     </div>
     <div class="who">
       <label for="client-name">Ihr Name<input class="txt" type="text" id="client-name" placeholder="Vor- und Nachname" autocomplete="name"></label>
@@ -639,7 +640,10 @@ const fmtEur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EU
 const eur = (n) => fmtEur.format(Math.round(n || 0));
 const pct = (n) => Math.round(n || 0) + ' %';
 const num = (k) => { const x = parseFloat(String(S.v[k] ?? '').replace(',', '.')); return isFinite(x) && x > 0 ? x : 0; };
-const monthly = (k) => S.iv[k] === 'y' ? num(k) / 12 : num(k);
+/* Zahlweise je Betrag: leer = monatlich, q = vierteljährlich, h = halbjährlich, y = jährlich */
+const IV = { '': { d: 1, s: '€/Mon.', l: 'pro Monat', t: '' }, q: { d: 3, s: '€/Quartal', l: 'pro Quartal', t: 'vierteljährl.' }, h: { d: 6, s: '€/Halbj.', l: 'pro Halbjahr', t: 'halbjährl.' }, y: { d: 12, s: '€/Jahr', l: 'pro Jahr', t: 'jährl.' } };
+const ivOf = (k) => IV[S.iv[k]] ? S.iv[k] : '';
+const monthly = (k) => num(k) / IV[ivOf(k)].d;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 function itemsOf(kind, g) {
@@ -650,7 +654,7 @@ function itemsOf(kind, g) {
 
 /* ---------- Formulare ---------- */
 function rowHTML(kind, g, f) {
-  const k = f.key, v = S.v[k] ?? '', y = S.iv[k] === 'y', withIv = kind !== 'w';
+  const k = f.key, v = S.v[k] ?? '', iv = ivOf(k), withIv = kind !== 'w';
   const company = !!g.company;
   const cls = ['row', company ? 'co3' : '', f.custom ? 'cu' : ''].join(' ');
   const labelPart = f.custom
@@ -658,7 +662,7 @@ function rowHTML(kind, g, f) {
     : `<label for="${k}">${esc(f.label)}${f.hint ? `<small>${esc(f.hint)}</small>` : ''}<small class="conv" id="cv-${k}"></small></label>`;
   const coPart = company ? `<input class="txt co" data-co="${k}" value="${esc(S.co[k] || '')}" placeholder="Gesellschaft" aria-label="Gesellschaft ${esc(f.label)}">` : '';
   const ivPart = withIv
-    ? `<button type="button" class="iv${y ? ' y' : ''}" data-iv="${k}" aria-label="Zeitraum für ${esc(f.label)}: ${y ? 'pro Jahr' : 'pro Monat'}, tippen zum Umschalten">${y ? '€/Jahr' : '€/Mon.'}</button>`
+    ? `<select class="iv${iv ? ' y' : ''}" data-iv="${k}" aria-label="Zahlweise für ${esc(f.label)}">${Object.entries(IV).map(([key, z]) => `<option value="${key}"${key === iv ? ' selected' : ''}>${z.s}</option>`).join('')}</select>`
     : '<span class="cur">€</span>';
   const rm = f.custom ? `<button type="button" class="rm" data-rm="${kind}:${g.id}:${f.id}" aria-label="Eigenen Posten entfernen">−</button>` : '';
   return `<div class="${cls}">${labelPart}${coPart}<div class="money-wrap${v !== '' ? ' has' : ''}${withIv ? '' : ' noiv'}">
@@ -688,11 +692,11 @@ const groupByKind = (kind, gid) => kind === 'in' ? INC : (kind === 'ex' ? GROUPS
 
 /* ---------- Rechnen ---------- */
 function calcBudget() {
-  const income = itemsOf('in', INC).map((f) => ({ ...f, v: monthly(f.key), raw: num(f.key), yearly: S.iv[f.key] === 'y' }));
+  const income = itemsOf('in', INC).map((f) => ({ ...f, v: monthly(f.key), raw: num(f.key), yearly: !!ivOf(f.key), ivt: IV[ivOf(f.key)].t }));
   const incomeTotal = income.reduce((s, x) => s + x.v, 0);
   let total = 0, fix = 0, save = 0;
   const groups = GROUPS.map((g) => {
-    const items = itemsOf('ex', g).map((f) => ({ ...f, v: monthly(f.key), raw: num(f.key), yearly: S.iv[f.key] === 'y', co: (S.co[f.key] || '').trim() }));
+    const items = itemsOf('ex', g).map((f) => ({ ...f, v: monthly(f.key), raw: num(f.key), yearly: !!ivOf(f.key), ivt: IV[ivOf(f.key)].t, co: (S.co[f.key] || '').trim() }));
     const sum = items.reduce((s, x) => s + x.v, 0);
     items.forEach((x) => { total += x.v; if (x.type === 'fix') fix += x.v; if (x.type === 'save') save += x.v; });
     return { ...g, items, sum };
@@ -980,7 +984,7 @@ function buildPdf() {
     ensure(20); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...color);
     T(label, 40, y + 2); T(value, W - 40, y + 2, { align: 'right' }); y += 22;
   }
-  const tagOf = (x) => x.yearly ? `jährl. ${eur(x.raw)}` : x.type === 'fix' ? 'Fix' : x.type === 'save' ? 'Sparen' : x.type === 'inc' ? '' : 'Variabel';
+  const tagOf = (x) => x.yearly ? `${x.ivt} ${eur(x.raw)}` : x.type === 'fix' ? 'Fix' : x.type === 'save' ? 'Sparen' : x.type === 'inc' ? '' : 'Variabel';
 
   header('Budgetcheck'); y = 112;
   const kw = (W - 80 - 36) / 4;
@@ -1008,7 +1012,7 @@ function buildPdf() {
   y += 66;
 
   section('Einnahmen', OK);
-  b.income.filter((x) => x.v > 0).forEach((x) => line(x.label, eur(x.v), { tag: x.yearly ? `jährl. ${eur(x.raw)}` : '' }));
+  b.income.filter((x) => x.v > 0).forEach((x) => line(x.label, eur(x.v), { tag: x.yearly ? `${x.ivt} ${eur(x.raw)}` : '' }));
   if (!b.income.some((x) => x.v > 0)) line('Keine Angaben', eur(0), { color: INK3 });
   sumLine('Einnahmen gesamt', eur(b.incomeTotal), OK);
 
@@ -1019,7 +1023,7 @@ function buildPdf() {
       if (rows.length) {
         ensure(16); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
         T('VERTRAG', 48, y); T('GESELLSCHAFT', 290, y); T('BEITRAG / MONAT', W - 40, y, { align: 'right' }); y += 12;
-        rows.forEach((x) => line(x.label, x.v ? eur(x.v) : '-', { mid: x.co || '-', tag: x.yearly ? `jährl. ${eur(x.raw)}` : '' }));
+        rows.forEach((x) => line(x.label, x.v ? eur(x.v) : '-', { mid: x.co || '-', tag: x.yearly ? `${x.ivt} ${eur(x.raw)}` : '' }));
       }
       const missing = g.items.filter((x) => !x.custom && x.id !== 'insurance' && !x.v && !x.co).map((x) => x.label);
       if (missing.length) {
@@ -1100,6 +1104,9 @@ document.addEventListener('input', (e) => {
   if (t.classList.contains('money')) {
     if (t.value === '') delete S.v[t.id]; else S.v[t.id] = t.value;
     t.parentElement.classList.toggle('has', t.value !== ''); render();
+  } else if (t.dataset.iv) {
+    const k = t.dataset.iv; if (t.value && IV[t.value]) S.iv[k] = t.value; else delete S.iv[k];
+    t.classList.toggle('y', !!S.iv[k]); render();
   } else if (t.dataset.co) { S.co[t.dataset.co] = t.value; render(); }
   else if (t.dataset.cu) {
     const [kind, gid, id] = t.dataset.cu.split(':'); const c = (S.custom[kind + ':' + gid] || []).find((x) => x.id === id); if (c) c.label = t.value;
@@ -1111,11 +1118,6 @@ document.addEventListener('input', (e) => {
 document.addEventListener('click', (e) => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.x) { const k = t.dataset.x; delete S.v[k]; const inp = $(k); inp.value = ''; inp.parentElement.classList.remove('has'); inp.focus(); render(); save(); }
-  else if (t.dataset.iv) {
-    const k = t.dataset.iv, y = S.iv[k] !== 'y'; if (y) S.iv[k] = 'y'; else delete S.iv[k];
-    t.classList.toggle('y', y); t.textContent = y ? '€/Jahr' : '€/Mon.';
-    t.setAttribute('aria-label', t.getAttribute('aria-label').replace(/pro (Jahr|Monat)/, y ? 'pro Jahr' : 'pro Monat')); render(); save();
-  }
   else if (t.dataset.clear) { const [k, g] = t.dataset.clear.split(':'); clearGroup(k, g); }
   else if (t.dataset.add) {
     const key = t.dataset.add; S.seq = (S.seq || 0) + 1; const id = 'cu' + S.seq;
