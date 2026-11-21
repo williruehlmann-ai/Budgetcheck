@@ -701,10 +701,8 @@ async function saveAll() {
   syncName(); syncContracts();
   try {
     if (mainTab !== 'vn') vnPush();
-    const pdfs = [['Abfragebogen', buildBogenPdf()], ['Budgetcheck', buildPdf().blob]];
-    if (rlHasData()) pdfs.push(['Rentenluecke', buildRentePdf()]);
-    if (vorteilHasData()) pdfs.push(['Sparpotenzial', buildVorteilPdf()]);
-    if (vnReady && vnHasNachher()) pdfs.push(['Vorher-Nachher', buildVnPdf()]);
+    const pdfs = collectPdfs();
+    if (pdfs.length > 1 && window.PDFLib) pdfs.push(['Kundenmappe', await buildMappe(pdfs)]);
     const useDir = await ensureDir();
     if (useDir) {
       const dir = await dirHandle.getDirectoryHandle(folderName(), { create: true });
@@ -1187,6 +1185,66 @@ function buildRentePdf() {
   return doc.output('blob');
 }
 
+/* ---------- Kundenmappe: alle PDFs in einer Datei mit Deckblatt und Inhalt ---------- */
+const PDF_TITEL = { Abfragebogen: 'Abfragebogen', Budgetcheck: 'Budgetcheck', Rentenluecke: 'Rentenlücke', Sparpotenzial: 'Sparpotenzial-Übersicht', 'Vorher-Nachher': 'Vorher-Nachher' };
+const PDF_SUB = { Abfragebogen: 'Deine Daten, Verträge und Ziele', Budgetcheck: 'Einnahmen, Ausgaben und Vermögen', Rentenluecke: 'Was im Alter fehlt und wie du es schließt', Sparpotenzial: 'Deine Einsparungen aus dem Vorteilsregal', 'Vorher-Nachher': 'Deine Verträge heute und morgen' };
+function collectPdfs() {
+  syncName(); syncContracts();
+  const pdfs = [['Abfragebogen', buildBogenPdf()], ['Budgetcheck', buildPdf().blob]];
+  if (rlHasData()) pdfs.push(['Rentenluecke', buildRentePdf()]);
+  if (vorteilHasData()) pdfs.push(['Sparpotenzial', buildVorteilPdf()]);
+  if (vnReady && vnHasNachher()) pdfs.push(['Vorher-Nachher', buildVnPdf()]);
+  return pdfs;
+}
+function buildCover(toc, total) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const NAVY = [10, 31, 68], GOLD = [201, 162, 74], INK = [11, 27, 54], INK3 = [98, 112, 138], LINE = [226, 231, 240];
+  const T = (txt, x, y, o) => doc.text(pdfText(txt), x, y, o);
+  const name = `${K.person.vorname} ${K.person.nachname}`.trim();
+  doc.setFillColor(...NAVY); doc.rect(0, 0, W, 330, 'F'); doc.setFillColor(...GOLD); doc.rect(0, 330, W, 4, 'F');
+  doc.setFillColor(...GOLD); doc.roundedRect(56, 64, 40, 40, 9, 9, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...NAVY); T('t', 76, 92, { align: 'center' });
+  doc.setFontSize(10); doc.setTextColor(230, 199, 126); T('KUNDENMAPPE', 56, 168);
+  doc.setFontSize(32); doc.setTextColor(255, 255, 255); T(name || 'Kunde', 56, 206);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(210, 218, 232); T(`Deine Finanzübersicht vom ${deDate(today())}`, 56, 232);
+  doc.setFontSize(10); doc.setTextColor(230, 199, 126); T(`${ADVISOR.name} · tecis`, 56, 290); doc.setTextColor(210, 218, 232); T(advContact(), 56, 306);
+  let y = 392;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...NAVY); T('INHALT', 56, y);
+  doc.setDrawColor(...LINE); doc.setLineWidth(0.7); doc.line(56 + doc.getTextWidth('INHALT') + 10, y - 3, W - 56, y - 3); y += 26;
+  toc.forEach(([key, page], i) => {
+    doc.setFillColor(...GOLD); doc.circle(66, y - 4, 10, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...NAVY); T(String(i + 1), 66, y - 0.5, { align: 'center' });
+    doc.setFontSize(12.5); doc.setTextColor(...INK); T(PDF_TITEL[key] || key, 88, y - 2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...INK3); T(PDF_SUB[key] || '', 88, y + 11);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...INK); T(`Seite ${page}`, W - 56, y + 2, { align: 'right' });
+    doc.setDrawColor(...LINE); doc.line(88, y + 22, W - 56, y + 22); y += 44;
+  });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
+  doc.splitTextToSize(pdfText('Alle Angaben ohne Gewähr. Hochrechnungen beruhen auf Annahmen und sind keine Garantie. Maßgeblich sind die jeweiligen Vertragsbedingungen.'), W - 112).forEach((l, i) => doc.text(l, 56, H - 70 + i * 10));
+  T(`tecis · ${ADVISOR.name} · ${advContact()}`, 56, H - 34); T(`${total} Seiten`, W - 56, H - 34, { align: 'right' });
+  doc.setProperties({ title: 'Kundenmappe' + (name ? ' ' + pdfText(name) : '') });
+  return doc.output('arraybuffer');
+}
+async function buildMappe(pdfs) {
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+  const parts = [];
+  for (const [key, blob] of pdfs) parts.push([key, await PDFDocument.load(await blob.arrayBuffer())]);
+  let page = 2; const toc = [];
+  parts.forEach(([key, d]) => { toc.push([key, page]); page += d.getPageCount(); });
+  const total = page - 1;
+  const out = await PDFDocument.create();
+  const cover = await PDFDocument.load(buildCover(toc, total));
+  (await out.copyPages(cover, [0])).forEach((p) => out.addPage(p));
+  for (const [, d] of parts) (await out.copyPages(d, d.getPageIndices())).forEach((p) => out.addPage(p));
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  out.getPages().forEach((p, i) => { if (!i) return; const w = p.getWidth(), t = `Kundenmappe · Seite ${i + 1} von ${total}`; p.drawText(t, { x: w / 2 - font.widthOfTextAtSize(t, 6.5) / 2, y: 10, size: 6.5, font, color: rgb(0.62, 0.66, 0.74) }); });
+  const name = `${K.person.vorname} ${K.person.nachname}`.trim();
+  out.setTitle('Kundenmappe' + (name ? ' ' + name : '')); out.setAuthor(`${ADVISOR.name} · tecis`); out.setProducer('Beratungstool'); out.setCreator('Beratungstool');
+  return new Blob([await out.save()], { type: 'application/pdf' });
+}
+
 /* ---------- Ereignisse ---------- */
 function conv(t) { if (t.type === 'checkbox') return t.checked; if (t.dataset.t === 'number') { const n = parseFloat(t.value); return t.value === '' || !isFinite(n) ? '' : n; } return t.value; }
 document.addEventListener('input', (e) => {
@@ -1229,6 +1287,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'vn-present') vnPresent();
   else if (act === 'pdf-vn') { if (!vnReady) return; download(`Vorher-Nachher_${today()}.pdf`, buildVnPdf()); }
   else if (act === 'vt-kap') { vKap = +t.dataset.k; renderVorteil(); const p = $('pane-vorteil'); if (p.getBoundingClientRect().top < 0) p.scrollIntoView({ block: 'start' }); }
+  else if (act === 'pdf-mappe') { if (!window.PDFLib) { toast('Das Mappen-Modul fehlt.'); return; } if (mainTab !== 'vn') vnPush(); buildMappe(collectPdfs()).then((b) => download(`Kundenmappe_${today()}.pdf`, b)).catch((e) => { console.error(e); toast('Die Mappe konnte nicht erstellt werden.'); }); }
   else if (act === 'pdf-rente') { if (!rlHasData()) { toast('Für die Rentenlücke fehlen Netto oder Wunschrente und das Geburtsdatum.'); return; } download(`Rentenluecke_${today()}.pdf`, buildRentePdf()); }
   else if (act === 'pdf-vorteil') { if (!vorteilHasData()) { toast('Kreuz zuerst mindestens eine Maßnahme an.'); return; } download(`Sparpotenzial_${today()}.pdf`, buildVorteilPdf()); }
   else if (act === 'dlg-back') $('dlg').close();

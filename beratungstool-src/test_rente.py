@@ -61,6 +61,24 @@ async def main():
         p2 = OUT / 'VN_test.pdf'; await (await dl.value).save_as(str(p2)); t2 = pdftext(p2)
         check('Vorher-Nachher-PDF enthält Gegenfinanzierung', 'GEGENFINANZIERT AUS DEINEN EINSPARUNGEN' in t2 and 'Vorteilsregal' in t2)
         subprocess.run(['pdftoppm', '-png', '-r', '70', '-f', '1', '-l', '1', str(p2), str(OUT / 'pdf_VN_fin')])
+        # Kundenmappe
+        async with page.expect_download() as dl: await page.click('[data-act="pdf-mappe"]')
+        pm = OUT / 'Kundenmappe_test.pdf'; await (await dl.value).save_as(str(pm)); tm = pdftext(pm)
+        info = subprocess.run(['pdfinfo', str(pm)], capture_output=True, text=True).stdout
+        pages = int([l for l in info.splitlines() if l.startswith('Pages:')][0].split()[-1])
+        parts = {}
+        for key in ['Abfragebogen', 'Budgetcheck', 'Rentenluecke', 'Sparpotenzial', 'Vorher-Nachher']:
+            parts[key] = int(await page.evaluate(f"(async()=>{{const p=collectPdfs().find(x=>x[0]==='{key}');if(!p)return 0;const d=await PDFLib.PDFDocument.load(await p[1].arrayBuffer());return d.getPageCount();}})()"))
+        check('Mappe: Deckblatt + alle Teile, Seitenzahl stimmt', pages == 1 + sum(parts.values()) and all(v > 0 for v in parts.values()), (pages, parts))
+        first = subprocess.run(['pdftotext', '-layout', '-f', '1', '-l', '1', str(pm), '-'], capture_output=True, text=True).stdout
+        exp_p = 2; ok_toc = True
+        for key, title in [('Abfragebogen', 'Abfragebogen'), ('Budgetcheck', 'Budgetcheck'), ('Rentenluecke', 'Rentenlücke'), ('Sparpotenzial', 'Sparpotenzial-Übersicht'), ('Vorher-Nachher', 'Vorher-Nachher')]:
+            line = [l for l in first.splitlines() if title in l]
+            ok_toc = ok_toc and bool(line) and f'Seite {exp_p}' in line[0]; exp_p += parts[key]
+        check('Mappe: Deckblatt mit Name und Inhaltsverzeichnis mit richtigen Seiten', 'KUNDENMAPPE' in first and 'Erika Mustermann' in first and ok_toc, first[:600])
+        check('Mappe: Seitenzahlen durchlaufend', f'Kundenmappe · Seite 2 von {pages}' in tm and f'Seite {pages} von {pages}' in tm)
+        check('Mappe: kein Link, kein Ruehlii', 'http' not in tm and 'ruehlii' not in tm.lower())
+        subprocess.run(['pdftoppm', '-png', '-r', '60', '-f', '1', '-l', '2', str(pm), str(OUT / 'pdf_Mappe')])
         # Laden/Speichern-Daten
         st = json.loads(await page.evaluate("JSON.stringify(K)"))
         check('kunde.json enthält Rentenlücke-Eingaben', st['rentenluecke'] == {'wunsch': '2200', 'weitere': '100'})

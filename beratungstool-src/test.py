@@ -104,7 +104,7 @@ async def main():
         tree = """async () => { const out = {}; async function walk(d, pre) { for await (const [n, h] of d.entries()) { if (h.kind === 'directory') await walk(h, pre + n + '/'); else { const f = await h.getFile(); const b = new Uint8Array(await f.arrayBuffer()); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); out[pre + n] = btoa(s); } } } await walk(dirHandle, ''); return out; }"""
         ok1 = await page.evaluate("saveAll()"); t1 = await page.evaluate(tree)
         d = datetime.date.today().isoformat(); f = 'Mustermann_Erika/'
-        check('Speichern legt Ordner Nachname_Vorname mit kunde.json und 3 PDFs an (inkl. Rentenlücke)', ok1 and sorted(t1) == sorted([f+'kunde.json', f+f'Abfragebogen_{d}.pdf', f+f'Budgetcheck_{d}.pdf', f+f'Rentenluecke_{d}.pdf']), sorted(t1))
+        check('Speichern legt Ordner Nachname_Vorname mit kunde.json, 3 PDFs und Kundenmappe an', ok1 and sorted(t1) == sorted([f+'kunde.json', f+f'Abfragebogen_{d}.pdf', f+f'Budgetcheck_{d}.pdf', f+f'Rentenluecke_{d}.pdf', f+f'Kundenmappe_{d}.pdf']), sorted(t1))
         await page.fill('#f-person-adresse-ort', 'Lübeck')
         await page.click('[data-tab="vn"]'); fr = page.frame_locator('#vn-frame')
         await fr.locator('.tray [data-go="compare"]').click()
@@ -133,7 +133,7 @@ async def main():
         await page.click('[data-tab="bogen"]')
         ok2 = await page.evaluate("saveAll()"); t2 = await page.evaluate(tree)
         new = sorted(set(t2) - set(t1))
-        check('Zweites Speichern: neue Dateien _v2, Vorher-Nachher-PDF und Archiv', ok2 and f+f'Abfragebogen_{d}_v2.pdf' in new and f+f'Budgetcheck_{d}_v2.pdf' in new and f+f'Vorher-Nachher_{d}.pdf' in new and any(n.startswith(f+'archiv/kunde_'+d) for n in new) and f+f'Rentenluecke_{d}_v2.pdf' in new and len(new) == 5, new)
+        check('Zweites Speichern: neue Dateien _v2, Vorher-Nachher-PDF und Archiv', ok2 and f+f'Abfragebogen_{d}_v2.pdf' in new and f+f'Budgetcheck_{d}_v2.pdf' in new and f+f'Vorher-Nachher_{d}.pdf' in new and any(n.startswith(f+'archiv/kunde_'+d) for n in new) and f+f'Rentenluecke_{d}_v2.pdf' in new and f+f'Kundenmappe_{d}_v2.pdf' in new and len(new) == 6, new)
         check('Zweites Speichern überschreibt keine PDF', all(t1[k] == t2[k] for k in t1 if k.endswith('.pdf')))
         arch = [n for n in new if '/archiv/' in n][0]
         check('Archiv enthält die alte kunde.json unverändert', t2[arch] == t1[f+'kunde.json'])

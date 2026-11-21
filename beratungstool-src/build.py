@@ -6,6 +6,8 @@ idx = (repo/'index.html').read_text(encoding='utf-8')
 vn = (repo/'vorher-nachher.html').read_text(encoding='utf-8')
 jspdf = (repo/'vendor/jspdf.umd.min.js').read_text(encoding='utf-8')
 assert '</script' not in jspdf.lower()
+pdflib = (repo/'vendor/pdf-lib.min.js').read_text(encoding='utf-8')
+assert '</script' not in pdflib.lower() and 'fetch(' not in pdflib and 'XMLHttpRequest' not in pdflib
 
 def cut(s, a, b, incl_b=False):
     i = s.index(a); j = s.index(b, i)
@@ -78,7 +80,7 @@ for bad in ('http://', 'https://', 'localStorage', 'fetch(', 'XMLHttpRequest', '
     assert bad not in own.replace('http://www.w3.org/2000/svg', ''), bad
 
 html = (here/'shell.html').read_text(encoding='utf-8')
-for k, v in (('/*@@BC_CSS@@*/', css), ('/*@@APP_CSS@@*/', app_css), ('<!--@@BC_MARKUP@@-->', mk), ('/*@@JSPDF@@*/', jspdf), ('/*@@BC_JS@@*/', bc_js), ('/*@@APP_JS@@*/', app_js)):
+for k, v in (('/*@@BC_CSS@@*/', css), ('/*@@APP_CSS@@*/', app_css), ('<!--@@BC_MARKUP@@-->', mk), ('/*@@JSPDF@@*/', jspdf), ('/*@@PDFLIB@@*/', pdflib), ('/*@@BC_JS@@*/', bc_js), ('/*@@APP_JS@@*/', app_js)):
     assert html.count(k) == 1, k
     html = html.replace(k, v)
 out.write_text(html, encoding='utf-8')
