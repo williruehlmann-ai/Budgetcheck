@@ -204,3 +204,27 @@ body.tab-vn main{padding-block:14px 0}
 .vn-fin b.ok{color:var(--ok)}
 .vn-fin .tot{margin-left:auto;text-align:right}
 .vn-fin .tot b{color:var(--navy);font-size:19px}
+
+/* Präsentationsmodus: Kundenansicht */
+body.present .top-right [data-act="save"],body.present .top-right [data-act="pdf-mappe"],body.present .top-right [data-act="home"],body.present #save-state{display:none}
+body.present .mtab[data-tab="bogen"]{display:none}
+body.present .pane-head .btn,body.present .vn-bar{display:none}
+body.present #budget-inputs,body.present #wealth-inputs{display:none}
+body.present #pane-budget .grid{grid-template-columns:minmax(0,1fr)}
+body.present #pane-budget .right{position:static;max-height:none;overflow:visible}
+body.present #pane-budget .progress{display:none}
+body.present #rl>section:first-child{display:none}
+body.present .rl-fin .btn{display:none}
+body.present .rl-fin{grid-template-columns:minmax(0,1fr) 260px}
+body.present .vt-row:not(.on),body.present .vt-hint,body.present .vt-chk,body.present .vt-note.empty{display:none}
+body.present .vt-row.on{grid-template-columns:minmax(0,1fr);margin-inline:0;padding-inline:0;background:none}
+body.present .vt-fields .inp:disabled{border-color:transparent;background:transparent;padding-left:0;color:var(--ink);-webkit-text-fill-color:var(--ink);font-weight:650;opacity:1}
+body.present .vt-fields .inp:disabled::placeholder{color:transparent}
+body.present .vt-foot .btn.line{display:none}
+.vt-empty{display:none}
+body.present .vt-empty{display:block;padding:18px 0 4px;color:var(--ink-3);font-size:14px}
+.btn-reset.gold .bt{color:#0A1F44}
+.vt-fields:not(.one) .vt-e{grid-column:4}
+body.present .vt-kap .sec-head .card-sub{display:none}
+@media (max-width:760px){.vt-fields:not(.one) .vt-e{grid-column:auto}}
+body.present .vt-pdfhint{display:none}

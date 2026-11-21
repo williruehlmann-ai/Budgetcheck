@@ -456,7 +456,7 @@ function vRow(it) {
       <p class="vt-tipp">${esc(it.tipp)}</p>
       <div class="vt-fields${fix ? '' : ' one'}">
         ${fix ? inp('v', 'Vorher €/Monat', s.v, String(it.standard)) + inp('n', 'Nachher €/Monat', s.n, '0') : inp('b', 'Ersparnis €/Monat', s.b, 'Betrag eintragen')}
-        <label class="f vt-note"><span class="lab">Notiz (steht im PDF)</span><input class="inp" type="text" data-vid="${it.id}" data-vf="note" value="${esc(s.note)}" placeholder="optional" autocomplete="off"></label>
+        <label class="f vt-note"><span class="lab">Notiz<span class="vt-pdfhint"> (steht im PDF)</span></span><input class="inp" type="text" data-vid="${it.id}" data-vf="note" value="${esc(s.note)}" placeholder="optional" autocomplete="off"></label>
         ${fix ? `<div class="vt-e" id="vte-${it.id}"><span>Ersparnis</span><b class="${e < 0 ? 'neg' : ''}">${eurC(e)}</b></div>` : ''}
       </div>
     </div>
@@ -488,10 +488,11 @@ function renderVorteil() {
   const k = vKap;
   const nav = `<div class="vt-foot">${k > 1 ? `<button type="button" class="btn line" data-act="vt-kap" data-k="${k - 1}">← ${VORTEIL_KURZ[k - 1]}</button>` : '<span></span>'}${k < 4 ? `<button type="button" class="btn navy" data-act="vt-kap" data-k="${k + 1}">Weiter: ${VORTEIL_KURZ[k + 1]} →</button>` : ''}</div>`;
   box.innerHTML = `<section class="panel glass sec vt-top"><div id="vt-sum"></div><nav class="vt-nav" id="vt-nav" role="tablist" aria-label="Kapitel"></nav></section>
-    <section class="panel glass sec vt-kap" id="vk-${k}">${secHead(k, esc(VORTEIL_KAP[k]), k === 2 || k === 3 ? 'Individuell: Ersparnis pro Monat selbst eintragen' : 'Richtwert vorbelegt, Vorher und Nachher anpassen')}${VORTEIL.filter((it) => it.kap === k).map(vRow).join('')}${nav}</section>
-    <p class="card-sub" style="margin:12px 4px 0">Nur angekreuzte Maßnahmen zählen in die Summe und ins PDF. Vorher ist mit einem Richtwert vorbelegt, trag den echten Betrag des Kunden ein.</p>`;
-  vSummary();
+    <section class="panel glass sec vt-kap" id="vk-${k}">${secHead(k, esc(VORTEIL_KAP[k]), k === 2 || k === 3 ? 'Individuell: Ersparnis pro Monat selbst eintragen' : 'Richtwert vorbelegt, Vorher und Nachher anpassen')}${VORTEIL.filter((it) => it.kap === k).map(vRow).join('')}${VORTEIL.some((it) => it.kap === k && vGet(it.id).c) ? '' : '<p class="vt-empty">In diesem Kapitel ist nichts übernommen.</p>'}${nav}</section>
+    <p class="card-sub vt-hint" style="margin:12px 4px 0">Nur angekreuzte Maßnahmen zählen in die Summe und ins PDF. Vorher ist mit einem Richtwert vorbelegt, trag den echten Betrag des Kunden ein.</p>`;
+  vSummary(); vNoteMarks(); presentLock();
 }
+const vNoteMarks = () => document.querySelectorAll('#vorteil .vt-note').forEach((n) => n.classList.toggle('empty', !n.querySelector('input').value.trim()));
 function vInput(t) {
   const id = t.dataset.vid, f = t.dataset.vf, it = VORTEIL.find((x) => x.id === id); if (!it) return;
   const s = vState(id);
@@ -532,7 +533,7 @@ function renderRente() {
       ${inp('weitere', 'Weitere Renten netto pro Monat', R.weitere, 'z. B. bAV, private Rente', 'bestehende Vorsorge, optional')}
     </div>${c.jahre == null ? '<p class="hint" style="margin-top:12px">Für die Hochrechnung fehlt das Geburtsdatum im Abfragebogen.</p>' : ''}</section>
     <section class="panel glass sec" id="rl-out"></section>`;
-  rlOut();
+  rlOut(); presentLock();
 }
 function rlOut() {
   const el = $('rl-out'); if (!el) return;
@@ -595,11 +596,28 @@ function showTab(t) {
   document.body.classList.toggle('tab-vn', t === 'vn');
   scrollTo(0, 0);
   if (t === 'vn') { vnPush(false, true); vnFin(); vnSize(); }
+  if (presenting()) { if (vnReady && vnWin.__vn.presenting() !== (t === 'vn')) vnPresent(); presentLock(); }
 }
+/* ---------- Präsentationsmodus: Kundenansicht ohne Eingaben ---------- */
+const presenting = () => document.body.classList.contains('present');
+function setPresent(on) {
+  document.body.classList.toggle('present', on);
+  const b = $('present-btn'); b.querySelector('.bt').textContent = on ? 'Bearbeiten' : 'Präsentieren'; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('gold', on);
+  if (!on) document.querySelectorAll('#app [data-pdis]').forEach((el) => { el.disabled = false; delete el.dataset.pdis; });
+  if (vnReady && vnWin.__vn.presenting() !== (on && mainTab === 'vn')) vnPresent();
+  if (on && mainTab === 'bogen') showTab('budget');
+  else if (mainTab === 'vorteil') renderVorteil();
+  else if (mainTab === 'rente') renderRente();
+  if (mainTab === 'budget') placeIndicator();
+  presentLock();
+}
+function presentLock() { if (presenting()) document.querySelectorAll('#app input, #app select, #app textarea').forEach((el) => { if (!el.disabled) { el.dataset.pdis = '1'; el.disabled = true; } }); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && presenting() && !$('dlg').open) setPresent(false); });
+
 function markDirty() { dirtyFlag = true; const s = $('save-state'); s.textContent = 'Nicht gespeichert'; s.classList.add('dirty'); }
 function markClean(txt) { dirtyFlag = false; const s = $('save-state'); s.textContent = txt; s.classList.remove('dirty'); }
 function openApp() {
-  $('start').hidden = true; $('app').hidden = false; $('top-actions').hidden = false; showMiss = false; vKap = 1;
+  $('start').hidden = true; $('app').hidden = false; $('top-actions').hidden = false; showMiss = false; vKap = 1; document.body.classList.remove('present');
   applyState(); vnPush(true); showTab('bogen');
 }
 function goHome() {
@@ -1287,6 +1305,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'vn-present') vnPresent();
   else if (act === 'pdf-vn') { if (!vnReady) return; download(`Vorher-Nachher_${today()}.pdf`, buildVnPdf()); }
   else if (act === 'vt-kap') { vKap = +t.dataset.k; renderVorteil(); const p = $('pane-vorteil'); if (p.getBoundingClientRect().top < 0) p.scrollIntoView({ block: 'start' }); }
+  else if (act === 'present') setPresent(!presenting());
   else if (act === 'pdf-mappe') { if (!window.PDFLib) { toast('Das Mappen-Modul fehlt.'); return; } if (mainTab !== 'vn') vnPush(); buildMappe(collectPdfs()).then((b) => download(`Kundenmappe_${today()}.pdf`, b)).catch((e) => { console.error(e); toast('Die Mappe konnte nicht erstellt werden.'); }); }
   else if (act === 'pdf-rente') { if (!rlHasData()) { toast('Für die Rentenlücke fehlen Netto oder Wunschrente und das Geburtsdatum.'); return; } download(`Rentenluecke_${today()}.pdf`, buildRentePdf()); }
   else if (act === 'pdf-vorteil') { if (!vorteilHasData()) { toast('Kreuz zuerst mindestens eine Maßnahme an.'); return; } download(`Sparpotenzial_${today()}.pdf`, buildVorteilPdf()); }
