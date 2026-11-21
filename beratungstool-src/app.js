@@ -30,7 +30,7 @@ function newKunde() {
     vertraege: [], kv: { art: '', anbieter: '' },
     rente: { vorhanden: null, erreicht: '', hochgerechnet: '', stand: '' },
     bav: { ja: null, eigen: '', arbeitgeber: '' }, vl: { arbeitgeberZahlt: null, betrag: '', genutzt: null },
-    budget: emptyState(), vorherNachher: null, vnAuto: [], bestand: {}, ziele: [], empfehlungen: [], vorteil: {},
+    budget: emptyState(), vorherNachher: null, vnAuto: [], bestand: {}, ziele: [], empfehlungen: [], vorteil: {}, rentenluecke: { wunsch: '', weitere: '' },
   };
 }
 function merge(def, src) {
@@ -504,17 +504,97 @@ function vInput(t) {
 }
 document.addEventListener('input', (e) => { const t = e.target; if (t.dataset && t.dataset.vid && t.closest('#vorteil')) vInput(t); });
 
+/* ---------- Rentenlücke: Annahmen wie besprochen (80 % Netto, 2 % Inflation, 20 % Abzug, bis 67) ---------- */
+const RL_QUOTE = 0.8, RL_INFL = 0.02, RL_ABZUG = 0.2;
+function rlCalc() {
+  const R = K.rentenluecke, netto = vNum(nettoMonat()), a = alter(), jahre = a == null ? null : Math.max(0, V_RENTE_ALTER - a);
+  const wunschAuto = isEmpty(R.wunsch), wunsch = wunschAuto ? (netto > 0 ? Math.round(netto * RL_QUOTE) : null) : vNum(R.wunsch);
+  const gesBrutto = isEmpty(K.rente.hochgerechnet) ? null : vNum(K.rente.hochgerechnet);
+  const gesNetto = gesBrutto == null ? 0 : gesBrutto * (1 - RL_ABZUG), weitere = vNum(R.weitere);
+  const ok = wunsch != null && wunsch > 0 && jahre != null;
+  const luecke = ok ? Math.max(0, wunsch - gesNetto - weitere) : null;
+  const faktor = jahre == null ? 1 : Math.pow(1 + RL_INFL, jahre);
+  const lueckeRB = luecke == null ? null : luecke * faktor, wunschRB = wunsch == null ? null : wunsch * faktor;
+  const kapital = lueckeRB == null ? null : lueckeRB * 12 * V_BEZUG_JAHRE;
+  const sparrate = kapital == null ? null : (jahre > 0 ? kapital / project(0, 1, jahre) : null);
+  const ersp = vTotals().monat, deckung = sparrate > 0 ? Math.min(1, Math.max(0, ersp) / sparrate) : null;
+  return { netto, jahre, a, wunsch, wunschAuto, wunschRB, gesBrutto, gesNetto, weitere, luecke, lueckeRB, faktor, kapital, sparrate, ersp, deckung, ok };
+}
+const rlHasData = () => rlCalc().ok;
+function renderRente() {
+  const box = $('rl'); if (!box) return;
+  const c = rlCalc(), R = K.rentenluecke;
+  const inp = (key, label, val, ph, hint) => `<div class="f"><label for="rl-${key}">${label}</label><input class="inp" id="rl-${key}" type="number" inputmode="decimal" step="any" min="0" data-rl="${key}" value="${esc(val)}"${ph ? ` placeholder="${esc(ph)}"` : ''}>${hint ? `<small>${hint}</small>` : ''}</div>`;
+  box.innerHTML = `<section class="panel glass sec"><div class="fg">
+      <div class="f"><span class="lab">Netto heute pro Monat</span><div class="derived">${c.netto > 0 ? eurC(c.netto) : '–'}</div><small>${c.netto > 0 ? 'aus dem Budgetcheck' : '<button type="button" class="link" data-act="tab" data-tab="budget">im Budgetcheck eintragen</button>'}</small></div>
+      ${inp('wunsch', 'Wunschrente heute pro Monat', R.wunsch, c.netto > 0 ? `${Math.round(c.netto * RL_QUOTE)} (80 % vom Netto)` : 'Betrag', 'in heutiger Kaufkraft')}
+      ${inp('hoch', 'Gesetzliche Rente laut Renteninfo (brutto)', K.rente.hochgerechnet, 'hochgerechnete Rente', `abzüglich pauschal ${Math.round(RL_ABZUG * 100)} % für KV/PV und Steuer`)}
+      ${inp('weitere', 'Weitere Renten netto pro Monat', R.weitere, 'z. B. bAV, private Rente', 'bestehende Vorsorge, optional')}
+    </div>${c.jahre == null ? '<p class="hint" style="margin-top:12px">Für die Hochrechnung fehlt das Geburtsdatum im Abfragebogen.</p>' : ''}</section>
+    <section class="panel glass sec" id="rl-out"></section>`;
+  rlOut();
+}
+function rlOut() {
+  const el = $('rl-out'); if (!el) return;
+  const c = rlCalc();
+  if (!c.ok) { el.innerHTML = '<div class="placeholder"><b>Noch keine Rechnung</b>Trag das Netto im Budgetcheck (oder eine Wunschrente) und das Geburtsdatum ein.</div>'; return; }
+  const W = Math.max(c.wunsch, c.gesNetto + c.weitere) || 1, pc = (x) => (Math.max(0, x) / W * 100).toFixed(1) + '%';
+  const keine = c.luecke <= 0.5;
+  el.innerHTML = `<div class="card-title">Deine Rente im Alter <span class="card-sub">in heutiger Kaufkraft, ab ${V_RENTE_ALTER} (in ${c.jahre} Jahren)</span></div>
+    <div class="rl-bar" role="img" aria-label="Wunschrente ${eur(c.wunsch)}, davon gesetzlich ${eur(c.gesNetto)}, weitere ${eur(c.weitere)}, Lücke ${eur(c.luecke)}">
+      <span class="g" style="width:${pc(c.gesNetto)}"></span><span class="w" style="width:${pc(c.weitere)}"></span><span class="l" style="width:${pc(c.luecke)}"></span>
+    </div>
+    <div class="rl-leg"><span><i class="g"></i>Gesetzlich netto ${eurC(Math.round(c.gesNetto))}</span>${c.weitere > 0 ? `<span><i class="w"></i>Weitere Renten ${eurC(c.weitere)}</span>` : ''}<span><i class="l"></i>Lücke ${eurC(Math.round(c.luecke))}</span><span class="r">Wunsch ${eurC(c.wunsch)}${c.wunschAuto ? ' (80 % vom Netto)' : ''}</span></div>
+    <div class="bsum rl-tiles">
+      <div><div class="l">Lücke heute pro Monat</div><div class="v${keine ? ' posd' : ' negd'}" id="rl-luecke">${keine ? 'keine' : eur(c.luecke)}</div><small>Wunsch minus gesetzliche und weitere Renten</small></div>
+      <div><div class="l">Lücke bei Rentenbeginn</div><div class="v" id="rl-lueckerb">${keine ? '–' : eur(c.lueckeRB)}</div><small>mit ${Math.round(RL_INFL * 100)} % Inflation pro Jahr</small></div>
+      <div><div class="l">Nötiger Sparplan pro Monat</div><div class="v" id="rl-rate">${keine ? '–' : c.sparrate == null ? '–' : eur(c.sparrate)}</div><small>${keine ? '' : `für ${eur(c.kapital)} Kapital, 6 % p. a.`}</small></div>
+    </div>
+    ${keine ? '' : `<div class="rl-fin">
+      <div><b>Finanziert aus deinen Einsparungen</b><span>${c.ersp > 0 ? `Das Vorteilsregal bringt ${eurC(c.ersp)} im Monat. Das deckt <b id="rl-deckung">${Math.round(c.deckung * 100)} %</b> des nötigen Sparplans${c.deckung < 1 ? `, offen bleiben ${eur(c.sparrate - c.ersp)}` : ' komplett'}.` : 'Noch keine Einsparungen im Vorteilsregal angekreuzt.'}</span></div>
+      <div class="rl-meter"><span style="width:${c.deckung == null ? 0 : (c.deckung * 100).toFixed(1)}%"></span></div>
+      <button type="button" class="btn line" data-act="tab" data-tab="vorteil">Zum Vorteilsregal</button>
+    </div>`}`;
+}
+document.addEventListener('input', (e) => {
+  const t = e.target; if (!t.dataset || !t.dataset.rl || !t.closest('#rl')) return;
+  if (t.dataset.rl === 'hoch') { K.rente.hochgerechnet = t.value === '' ? '' : vNum(t.value); if (t.value !== '') K.rente.vorhanden = true; }
+  else K.rentenluecke[t.dataset.rl] = t.value;
+  markDirty(); rlOut();
+});
+
+/* ---------- Einsparungen gegen neue Beiträge im Vorher-Nachher ---------- */
+function vnFinCalc() {
+  if (!vnReady) return null;
+  const V = vnWin.__vn, T = V.get(), { t } = V.totals();
+  const v2 = !!T.v2 && V.sel().some((i) => i.p[2] !== '' || (i.t[2] || '').trim()), kv = v2 ? T.variant : 1;
+  const d = t[kv] - t[0], ersp = vTotals().monat;
+  return { d, ersp, netto: d - ersp, kv, v2 };
+}
+function vnFin() {
+  const el = $('vn-fin'); if (!el) return;
+  const f = vnFinCalc();
+  if (!f || f.ersp <= 0) { el.innerHTML = ''; return; }
+  const sg = (n) => (n > 0.5 ? '+ ' : n < -0.5 ? '− ' : '') + eurC(Math.abs(Math.round(n * 100) / 100));
+  el.innerHTML = `<div class="vn-fin glass">
+    <div><span>Vorher → Nachher${f.v2 ? ` (Variante ${f.kv})` : ''}</span><b>${sg(f.d)}</b></div>
+    <div><span>Einsparungen aus dem Vorteilsregal</span><b class="ok">− ${eurC(f.ersp)}</b></div>
+    <div class="tot"><span>${f.netto <= 0 ? 'Unterm Strich sparst du' : 'Unterm Strich zahlst du mehr'}</span><b id="vn-fin-netto">${eurC(Math.abs(Math.round(f.netto * 100) / 100))} / Monat</b></div>
+  </div>`;
+}
+
 /* ---------- Tabs, Start, Status ---------- */
 function showTab(t) {
   mainTab = t;
   document.querySelectorAll('.mtab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-  ['bogen', 'budget', 'vn', 'vorteil'].forEach((p) => { $('pane-' + p).hidden = p !== t; });
+  ['bogen', 'budget', 'rente', 'vorteil', 'vn'].forEach((p) => { $('pane-' + p).hidden = p !== t; });
   if (t === 'budget') { applyState(); show(current); }
   if (t === 'bogen') renderBogen();
   if (t === 'vorteil') renderVorteil();
+  if (t === 'rente') renderRente();
   document.body.classList.toggle('tab-vn', t === 'vn');
   scrollTo(0, 0);
-  if (t === 'vn') { vnPush(false, true); vnSize(); }
+  if (t === 'vn') { vnPush(false, true); vnFin(); vnSize(); }
 }
 function markDirty() { dirtyFlag = true; const s = $('save-state'); s.textContent = 'Nicht gespeichert'; s.classList.add('dirty'); }
 function markClean(txt) { dirtyFlag = false; const s = $('save-state'); s.textContent = txt; s.classList.remove('dirty'); }
@@ -567,7 +647,7 @@ async function renderStart() {
   const dirTxt = dirState === 'ok' ? `<span class="dot-s ok"></span>Verbunden: ${esc(dirHandle.name)}` : dirState === 'prompt' ? `<span class="dot-s warn"></span>${esc(dirHandle.name)}: Zugriff bestätigen` : '<span class="dot-s"></span>Noch kein Ordner verbunden';
   const dirBtn = dirState === 'prompt' ? '<button type="button" class="btn navy" data-act="dir-confirm">Zugriff bestätigen</button>' : `<button type="button" class="btn line" data-act="dir-pick">${dirState === 'ok' ? 'Anderen Ordner wählen' : 'Ordner „Kunden“ wählen'}</button>`;
   $('start').innerHTML = `<div class="start">
-    <div><h2>Beratungstool</h2><p class="lead">Abfragebogen, Budgetcheck, Vorher-Nachher und Vorteilsregal an einem Ort. Alles bleibt auf diesem Mac.</p></div>
+    <div><h2>Beratungstool</h2><p class="lead">Abfragebogen, Budgetcheck, Rentenlücke, Vorteilsregal und Vorher-Nachher an einem Ort. Alles bleibt auf diesem Mac.</p></div>
     <div class="start-btns">
       <button type="button" class="bigbtn gold" data-act="new"><b>Neuer Kunde</b><span>Leeren Abfragebogen starten</span></button>
       <button type="button" class="bigbtn glass" data-act="load"><b>Kunde laden</b><span>kunde.json aus dem Kundenordner öffnen</span></button>
@@ -587,7 +667,7 @@ function loadJson(txt) {
   if (!o || o.app !== 'beratungstool') { toast('Das ist keine kunde.json aus dem Beratungstool.'); return false; }
   if (o.verschluesselt) { toast('Diese Datei ist verschlüsselt. Das Entsperren kommt mit dem Passwortschutz.'); return false; }
   if (o.schemaVersion > SCHEMA) { toast('Die Datei stammt aus einer neueren Version des Tools.'); return false; }
-  K = merge(newKunde(), o); K.schemaVersion = SCHEMA; K.gesundheit.aktiv = false; if (!K.vorteil || typeof K.vorteil !== 'object' || Array.isArray(K.vorteil)) K.vorteil = {}; K.budget = Object.assign(emptyState(), K.budget); S = K.budget;
+  K = merge(newKunde(), o); K.schemaVersion = SCHEMA; K.gesundheit.aktiv = false; if (!K.vorteil || typeof K.vorteil !== 'object' || Array.isArray(K.vorteil)) K.vorteil = {}; if (!K.rentenluecke || typeof K.rentenluecke !== 'object') K.rentenluecke = { wunsch: '', weitere: '' }; K.budget = Object.assign(emptyState(), K.budget); S = K.budget;
   openApp(); markClean('Geladen'); return true;
 }
 async function openClient(name) {
@@ -622,8 +702,9 @@ async function saveAll() {
   try {
     if (mainTab !== 'vn') vnPush();
     const pdfs = [['Abfragebogen', buildBogenPdf()], ['Budgetcheck', buildPdf().blob]];
-    if (vnReady && vnHasNachher()) pdfs.push(['Vorher-Nachher', buildVnPdf()]);
+    if (rlHasData()) pdfs.push(['Rentenluecke', buildRentePdf()]);
     if (vorteilHasData()) pdfs.push(['Sparpotenzial', buildVorteilPdf()]);
+    if (vnReady && vnHasNachher()) pdfs.push(['Vorher-Nachher', buildVnPdf()]);
     const useDir = await ensureDir();
     if (useDir) {
       const dir = await dirHandle.getDirectoryHandle(folderName(), { create: true });
@@ -779,7 +860,7 @@ function vnInit() {
   f.addEventListener('load', () => { vnWin = f.contentWindow; if (!vnWin || !vnWin.__vn) return; vnWin.__vnChanged = vnChanged; vnReady = true; vnPush(true); });
   f.srcdoc = VN_SRC;
 }
-function vnChanged() { if (vnPushing || !vnReady) return; K.vorherNachher = JSON.parse(JSON.stringify(vnWin.__vn.get())); markDirty(); }
+function vnChanged() { if (vnPushing || !vnReady) return; K.vorherNachher = JSON.parse(JSON.stringify(vnWin.__vn.get())); markDirty(); vnFin(); }
 function vnSize() { const f = $('vn-frame'); f.style.height = Math.max(420, innerHeight - f.getBoundingClientRect().top - 8) + 'px'; }
 addEventListener('resize', () => { if (mainTab === 'vn') vnSize(); });
 function vnPresent() {
@@ -865,6 +946,15 @@ function buildVnPdf() {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...(dark ? [210, 218, 232] : INK3)); Tx(s, x + 11, y + (two ? 50 : 48));
   });
   y += 74;
+  const fin = vnFinCalc();
+  if (fin && fin.ersp > 0) {
+    doc.setFillColor(251, 246, 233); doc.roundedRect(40, y, W - 80, 30, 5, 5, 'F'); doc.setFillColor(...GOLD); doc.rect(40, y, 3, 30, 'F');
+    const f2 = (n) => veur(Math.abs(n)), sg = fin.d > 0.5 ? '+ ' : fin.d < -0.5 ? '- ' : '';
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...GOLDI); Tx('GEGENFINANZIERT AUS DEINEN EINSPARUNGEN', 52, y + 12);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...INK);
+    Tx(`Vorher > Nachher ${sg}${f2(fin.d)}   ·   Einsparungen aus dem Vorteilsregal - ${f2(fin.ersp)}   ·   ${fin.netto <= 0 ? 'Unterm Strich sparst du' : 'Unterm Strich zahlst du mehr'} ${f2(fin.netto)} pro Monat`, 52, y + 24);
+    y += 42;
+  }
 
   // Tabelle
   const cols = v2 ? [['Sparte', 112], ['Vorher', 62], ['Gesellschaft / Leistung', 130], ['Variante 1', 62], ['Gesellschaft / Leistung', 130], ['Variante 2', 62], ['Gesellschaft / Leistung', 130], ['Bewertung', 74]]
@@ -1023,6 +1113,80 @@ function buildVorteilPdf() {
   return doc.output('blob');
 }
 
+/* ---------- PDF Rentenlücke ---------- */
+function buildRentePdf() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const NAVY = [10, 31, 68], GOLD = [201, 162, 74], GOLDI = [138, 103, 25], INK = [11, 27, 54], INK2 = [51, 65, 92], INK3 = [98, 112, 138], LINE = [226, 231, 240], OK = [30, 138, 99], BAD = [178, 58, 58];
+  const T = (txt, x, y, o) => doc.text(pdfText(txt), x, y, o);
+  const name = `${K.person.vorname} ${K.person.nachname}`.trim(), c = rlCalc(), keine = c.luecke <= 0.5;
+  doc.setFillColor(...NAVY); doc.rect(0, 0, W, 78, 'F'); doc.setFillColor(...GOLD); doc.rect(0, 78, W, 2.5, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); T('Rentenlücke', 40, 36);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(230, 199, 126);
+  T(name ? `Kunde: ${name}` : 'Kunde: ohne Namen', 40, 54); T(`Erstellt am ${deDate(today())}`, 40, 66);
+  doc.setTextColor(210, 218, 232); T(`Berater: ${ADVISOR.name} · tecis`, W - 40, 42, { align: 'right' }); T(advContact(), W - 40, 56, { align: 'right' });
+  let y = 100;
+  const tiles = [['Lücke heute pro Monat', keine ? 'keine' : eur(c.luecke), 'in heutiger Kaufkraft', keine ? OK : BAD],
+    ['Lücke bei Rentenbeginn', keine ? '–' : eur(c.lueckeRB), `mit ${Math.round(RL_INFL * 100)} % Inflation · in ${c.jahre} Jahren`, GOLD],
+    ['Nötiger Sparplan pro Monat', keine || c.sparrate == null ? '–' : eur(c.sparrate), keine ? '' : `für ${eur(c.kapital)} Kapital · 6 % p. a.`, null]];
+  const tw = (W - 80 - 24) / 3;
+  tiles.forEach(([l, val, sub, col], i) => {
+    const x = 40 + i * (tw + 12), dark = col === null;
+    if (dark) { doc.setFillColor(...NAVY); doc.roundedRect(x, y, tw, 62, 5, 5, 'F'); doc.setFillColor(...GOLD); doc.rect(x, y, 3, 62, 'F'); }
+    else { doc.setFillColor(255, 255, 255); doc.setDrawColor(...LINE); doc.roundedRect(x, y, tw, 62, 5, 5, 'FD'); doc.setFillColor(...col); doc.rect(x, y, 3, 62, 'F'); }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...(dark ? [230, 199, 126] : INK3)); T(l.toUpperCase(), x + 11, y + 15);
+    doc.setFontSize(16); doc.setTextColor(...(dark ? [255, 255, 255] : INK)); T(val, x + 11, y + 38);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...(dark ? [210, 218, 232] : INK3)); T(sub, x + 11, y + 52);
+  });
+  y += 88;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...NAVY); T('DEINE RENTE IM ALTER', 40, y);
+  const tw0 = doc.getTextWidth('DEINE RENTE IM ALTER');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...INK3); T(`in heutiger Kaufkraft, ab ${V_RENTE_ALTER}`, 40 + tw0 + 10, y);
+  y += 10;
+  const bw = W - 80, M = Math.max(c.wunsch, c.gesNetto + c.weitere) || 1; let bx = 40;
+  [[c.gesNetto, NAVY], [c.weitere, GOLD], [c.luecke, BAD]].forEach(([v, col]) => { const w = Math.max(0, v) / M * bw; if (w > 0.5) { doc.setFillColor(...col); doc.rect(bx, y, w, 22, 'F'); bx += w; } });
+  doc.setDrawColor(...LINE); doc.rect(40, y, bw, 22, 'S'); y += 32;
+  let lx = 40;
+  doc.setFontSize(8);
+  [['Gesetzlich netto', NAVY, c.gesNetto], ['Weitere Renten', GOLD, c.weitere], ['Lücke', BAD, c.luecke]].forEach(([l, col, v]) => {
+    if (v <= 0.5 && l !== 'Lücke') return;
+    doc.setFillColor(...col); doc.rect(lx, y - 7, 8, 8, 'F'); doc.setTextColor(...INK2); const t = `${l} ${eur(v)}`; T(t, lx + 12, y); lx += doc.getTextWidth(pdfText(t)) + 28;
+  });
+  doc.setTextColor(...INK3); T(`Wunsch ${eur(c.wunsch)}`, W - 40, y, { align: 'right' });
+  y += 22;
+  const rows = [
+    ['Netto heute pro Monat', c.netto > 0 ? eurC(c.netto) : '–'],
+    ['Wunschrente heute' + (c.wunschAuto ? ' (80 % vom Netto)' : ''), eurC(c.wunsch)],
+    ['Gesetzliche Rente laut Renteninfo (brutto)', c.gesBrutto == null ? 'nicht angegeben' : eurC(c.gesBrutto)],
+    [`abzüglich pauschal ${Math.round(RL_ABZUG * 100)} % (KV/PV, Steuer)`, c.gesBrutto == null ? '–' : '− ' + eurC(Math.round(c.gesBrutto * RL_ABZUG * 100) / 100)],
+    ['Gesetzliche Rente netto', eurC(Math.round(c.gesNetto * 100) / 100)],
+    ['Weitere Renten netto (bAV, privat)', eurC(c.weitere)],
+  ];
+  const line = (l, v, bold, col) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(9.5); doc.setTextColor(...(bold ? INK : INK2)); T(l, 48, y); doc.setFont('helvetica', 'bold'); doc.setTextColor(...(col || INK)); T(v, W - 40, y, { align: 'right' }); doc.setDrawColor(...LINE); doc.line(40, y + 5, W - 40, y + 5); y += 17; };
+  rows.forEach(([l, v]) => line(l, v));
+  line('Rentenlücke heute pro Monat', keine ? 'keine' : eurC(Math.round(c.luecke)), true, keine ? OK : BAD);
+  if (!keine) {
+    line(`Lücke bei Rentenbeginn (${Math.round(RL_INFL * 100)} % Inflation, ${c.jahre} Jahre)`, eurC(Math.round(c.lueckeRB)));
+    line(`Kapitalbedarf für ${V_BEZUG_JAHRE} Jahre Rentenbezug`, eur(c.kapital));
+    line(`Nötiger Sparplan pro Monat (6 % p. a. bis ${V_RENTE_ALTER})`, c.sparrate == null ? '–' : eur(c.sparrate), true);
+    y += 10;
+    doc.setFillColor(251, 246, 233); doc.roundedRect(40, y, W - 80, 58, 5, 5, 'F'); doc.setFillColor(...GOLD); doc.rect(40, y, 3, 58, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...GOLDI); T('FINANZIERT AUS DEINEN EINSPARUNGEN', 54, y + 17);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...INK);
+    const txt = c.ersp > 0 ? `Die Einsparungen aus dem Vorteilsregal bringen ${eurC(c.ersp)} im Monat. Das deckt ${Math.round(c.deckung * 100)} % des nötigen Sparplans${c.deckung < 1 ? `, offen bleiben ${eur(c.sparrate - c.ersp)} im Monat` : ' komplett'}.` : 'Im Vorteilsregal sind noch keine Einsparungen übernommen.';
+    doc.splitTextToSize(pdfText(txt), W - 120).forEach((l, i) => doc.text(l, 54, y + 33 + i * 12));
+    y += 74;
+  }
+  y += 6;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
+  const fn = `Annahmen: Wunschrente ohne eigene Angabe 80 % vom heutigen Netto. Die Werte der Renteninfo gelten als heutige Kaufkraft (ohne künftige Rentenanpassungen); davon pauschal ${Math.round(RL_ABZUG * 100)} % Abzug für Kranken-/Pflegeversicherung und Steuer. Inflation ${Math.round(RL_INFL * 100)} % pro Jahr bis ${V_RENTE_ALTER}. Kapitalbedarf: Lücke bei Rentenbeginn über ${V_BEZUG_JAHRE} Jahre ohne weitere Verzinsung. Sparplan mit angenommenen 6 % Rendite pro Jahr. Alles Schätzungen, keine Garantie; maßgeblich sind die tatsächliche Renteninfo und die Vertragsbedingungen.`;
+  doc.splitTextToSize(pdfText(fn), W - 80).forEach((l) => { doc.text(l, 40, y); y += 10; });
+  T(`tecis · ${ADVISOR.name} · ${advContact()}`, 40, H - 24); T('Seite 1 / 1', W - 40, H - 24, { align: 'right' });
+  doc.setProperties({ title: 'Rentenlücke' + (name ? ' ' + pdfText(name) : '') });
+  return doc.output('blob');
+}
+
 /* ---------- Ereignisse ---------- */
 function conv(t) { if (t.type === 'checkbox') return t.checked; if (t.dataset.t === 'number') { const n = parseFloat(t.value); return t.value === '' || !isFinite(n) ? '' : n; } return t.value; }
 document.addEventListener('input', (e) => {
@@ -1065,6 +1229,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'vn-present') vnPresent();
   else if (act === 'pdf-vn') { if (!vnReady) return; download(`Vorher-Nachher_${today()}.pdf`, buildVnPdf()); }
   else if (act === 'vt-kap') { vKap = +t.dataset.k; renderVorteil(); const p = $('pane-vorteil'); if (p.getBoundingClientRect().top < 0) p.scrollIntoView({ block: 'start' }); }
+  else if (act === 'pdf-rente') { if (!rlHasData()) { toast('Für die Rentenlücke fehlen Netto oder Wunschrente und das Geburtsdatum.'); return; } download(`Rentenluecke_${today()}.pdf`, buildRentePdf()); }
   else if (act === 'pdf-vorteil') { if (!vorteilHasData()) { toast('Kreuz zuerst mindestens eine Maßnahme an.'); return; } download(`Sparpotenzial_${today()}.pdf`, buildVorteilPdf()); }
   else if (act === 'dlg-back') $('dlg').close();
   else if (act === 'dlg-save') { $('dlg').close(); saveAll(); }

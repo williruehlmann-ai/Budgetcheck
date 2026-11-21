@@ -39,8 +39,9 @@
     <nav class="mseg glass" role="tablist" aria-label="Bereiche">
       <button class="mtab" role="tab" type="button" data-act="tab" data-tab="bogen" aria-selected="true"><span class="step">1</span>Abfragebogen</button>
       <button class="mtab" role="tab" type="button" data-act="tab" data-tab="budget" aria-selected="false"><span class="step">2</span>Budgetcheck</button>
-      <button class="mtab" role="tab" type="button" data-act="tab" data-tab="vn" aria-selected="false"><span class="step">3</span>Vorher-Nachher</button>
+      <button class="mtab" role="tab" type="button" data-act="tab" data-tab="rente" aria-selected="false"><span class="step">3</span>Rentenlücke</button>
       <button class="mtab" role="tab" type="button" data-act="tab" data-tab="vorteil" aria-selected="false"><span class="step">4</span>Vorteilsregal</button>
+      <button class="mtab" role="tab" type="button" data-act="tab" data-tab="vn" aria-selected="false"><span class="step">5</span>Vorher-Nachher</button>
     </nav>
     <main>
       <section id="pane-bogen">
@@ -59,11 +60,20 @@
 <!--@@BC_MARKUP@@-->
       </section>
 
+      <section id="pane-rente" hidden>
+        <div class="pane-head">
+          <div><h2>Rentenlücke</h2><p>Was du im Alter brauchst, was die gesetzliche Rente bringt und was fehlt. Die Einsparungen aus dem Vorteilsregal fließen direkt in die Lösung.</p></div>
+          <button type="button" class="btn ghost" data-act="pdf-rente">Rentenlücke-PDF herunterladen</button>
+        </div>
+        <div id="rl"></div>
+      </section>
+
       <section id="pane-vn" hidden>
         <div class="vn-bar">
           <span class="card-sub">Vorher-Werte kommen aus der Vertragsliste. Themen mit „fehlt“ sind als „neu“ vorausgewählt.</span>
           <span class="vn-btns"><button type="button" class="btn ghost" data-act="vn-present" id="vn-present" aria-pressed="false">Präsentieren</button><button type="button" class="btn ghost" data-act="pdf-vn">Vorher-Nachher-PDF herunterladen</button></span>
         </div>
+        <div id="vn-fin"></div>
         <iframe id="vn-frame" title="Vorher-Nachher"></iframe>
       </section>
 
