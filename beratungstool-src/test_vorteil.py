@@ -21,7 +21,12 @@ async def main():
         await page.click('[data-act="new"]')
         await page.fill('#f-person-vorname', 'Erika'); await page.fill('#f-person-nachname', 'Mustermann')
         await page.click('[data-tab="vorteil"]')
-        check('Tab Vorteilsregal: 42 Maßnahmen in 4 Kapiteln', await page.locator('.vt-row').count() == 42 and await page.locator('.vt-kap').count() == 4)
+        check('Tab Vorteilsregal: 4 Reiter, Kapitel 1 mit 16 Maßnahmen sichtbar', await page.locator('.vt-tab').count() == 4 and await page.locator('.vt-row').count() == 16 and await page.locator('.vt-kap').count() == 1)
+        cnt = []
+        for k in (2, 3, 4):
+            await page.click(f'.vt-tab[data-k="{k}"]'); cnt.append(await page.locator('.vt-row').count())
+        check('Kapitel 2/3/4 einzeln: 5, 6, 15 Maßnahmen', cnt == [5, 6, 15], cnt)
+        await page.click('.vt-tab[data-k="1"]')
         check('Ohne Geburtsdatum: Hinweis statt Hochrechnung', 'Geburtsdatum' in await page.inner_text('#vt-sum') and await page.inner_text('#vt-kapital') == '–')
         check('Start: nichts angekreuzt, Summe 0 €', (await page.inner_text('#vt-monat')).startswith('0'), await page.inner_text('#vt-monat'))
         check('Vorher mit Richtwert vorbelegt (Strom 25)', await page.input_value('[data-vid="v01"][data-vf="v"]') == '25')
@@ -34,9 +39,13 @@ async def main():
         check('Ankreuzen Strom: 25 € pro Monat', (await page.inner_text('#vt-monat')).startswith('25'), await page.inner_text('#vt-monat'))
         await page.fill('[data-vid="v01"][data-vf="v"]', '95'); await page.fill('[data-vid="v01"][data-vf="n"]', '70')
         check('Vorher 95 / Nachher 70: Zeile zeigt 25 €', (await page.inner_text('#vte-v01')).endswith('25 €'), await page.inner_text('#vte-v01'))
+        await page.click('[data-act="vt-kap"][data-k="2"].btn')
+        check('Weiter-Knopf führt zu Kapitel 2', await page.get_attribute('.vt-tab[data-k="2"]', 'aria-selected') == 'true')
         await page.fill('[data-vid="v17"][data-vf="b"]', '100')
         check('Betrag bei Anschlussfinanzierung wird automatisch übernommen', await page.is_checked('[data-vid="v17"][data-vf="c"]'))
         await page.fill('[data-vid="v17"][data-vf="note"]', 'Forward-Darlehen bis 03/2027 anfragen')
+        await page.click('.vt-tab[data-k="1"]')
+        check('Reiter zeigt Zwischenstand je Kapitel', '100' in await page.inner_text('.vt-tab[data-k="2"]'), await page.inner_text('.vt-tab[data-k="2"]'))
         await page.fill('[data-vid="v11"][data-vf="n"]', '20')  # Unnötige Versicherungen 50 -> 20 = 30
         check('Nachher eintragen übernimmt die Zeile', await page.is_checked('[data-vid="v11"][data-vf="c"]'))
         m = await page.inner_text('#vt-monat')
@@ -51,7 +60,7 @@ async def main():
         check('Ungespeichert-Markierung gesetzt', 'Nicht gespeichert' in await page.inner_text('#save-state'))
         await page.check('[data-vid="v01"][data-vf="c"]')
         await page.evaluate("scrollTo(0,0)"); await page.screenshot(path=str(OUT/'11_vorteil_oben.png'))
-        await page.locator('#vk-2').scroll_into_view_if_needed(); await page.screenshot(path=str(OUT/'12_vorteil_kap2.png'))
+        await page.click('.vt-tab[data-k="2"]'); await page.evaluate('scrollTo(0,0)'); await page.screenshot(path=str(OUT/'12_vorteil_kap2.png')); await page.click('.vt-tab[data-k="1"]')
         # PDF-Download über Button
         async with page.expect_download() as dl:
             await page.click('[data-act="pdf-vorteil"]')
@@ -85,7 +94,7 @@ async def main():
         # alter Kunde ohne vorteil-Feld lädt sauber
         old = json.loads(saved); del old['vorteil']
         await page.evaluate("(s) => loadJson(s)", json.dumps(old)); await page.click('[data-tab="vorteil"]')
-        check('Ältere kunde.json ohne Vorteilsregal lädt sauber', (await page.inner_text('#vt-monat')).startswith('0') and await page.locator('.vt-row').count() == 42)
+        check('Ältere kunde.json ohne Vorteilsregal lädt sauber', (await page.inner_text('#vt-monat')).startswith('0') and await page.locator('.vt-row').count() == 16)
         check('Keine Fehler beim Speichern/Laden', not errs, errs[:3])
         await br.close()
     print(f"\n{sum(1 for _, ok in res if ok)}/{len(res)} bestanden")

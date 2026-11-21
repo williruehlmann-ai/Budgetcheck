@@ -472,11 +472,24 @@ function vSummary() {
       <div><div class="l">Als Sparplan bis ${V_RENTE_ALTER}</div><div class="v" id="vt-kapital">${kap}</div><small>${esc(hint)}</small></div>
       <div><div class="l">Zusätzliche Rente pro Monat</div><div class="v" id="vt-rente">${ren}</div><small>Schätzung, verteilt auf ${V_BEZUG_JAHRE} Jahre ab ${V_RENTE_ALTER}</small></div>
     </div>`;
+  vNav();
+}
+const VORTEIL_KURZ = { 1: 'Laufende Einsparungen', 2: 'Kapitalanlagen & Finanzierungen', 3: 'Ungehobene Schätze', 4: 'Alltag' };
+let vKap = 1;
+function vNav() {
+  const el = $('vt-nav'); if (!el) return;
+  el.innerHTML = [1, 2, 3, 4].map((k) => {
+    const its = VORTEIL.filter((it) => it.kap === k), on = its.filter((it) => vGet(it.id).c), sum = on.reduce((a, it) => a + vErsparnis(it), 0);
+    return `<button type="button" class="vt-tab" role="tab" data-act="vt-kap" data-k="${k}" aria-selected="${k === vKap}"><span class="n">${k}</span><span class="t"><b>${VORTEIL_KURZ[k]}</b><small>${on.length ? `${on.length} von ${its.length} · ${eurC(sum)}` : `${its.length} Maßnahmen`}</small></span></button>`;
+  }).join('');
 }
 function renderVorteil() {
   const box = $('vorteil'); if (!box) return;
-  box.innerHTML = `<section class="panel glass sec vt-top"><div id="vt-sum"></div><p class="card-sub" style="margin:10px 0 0">Nur angekreuzte Maßnahmen zählen in die Summe und ins PDF. Vorher ist mit einem Richtwert vorbelegt, trag den echten Betrag des Kunden ein.</p></section>`
-    + [1, 2, 3, 4].map((k) => `<section class="panel glass sec vt-kap" id="vk-${k}">${secHead(k, esc(VORTEIL_KAP[k]), k === 2 || k === 3 ? 'Individuell: Ersparnis pro Monat selbst eintragen' : 'Richtwert vorbelegt, Vorher und Nachher anpassen')}${VORTEIL.filter((it) => it.kap === k).map(vRow).join('')}</section>`).join('');
+  const k = vKap;
+  const nav = `<div class="vt-foot">${k > 1 ? `<button type="button" class="btn line" data-act="vt-kap" data-k="${k - 1}">← ${VORTEIL_KURZ[k - 1]}</button>` : '<span></span>'}${k < 4 ? `<button type="button" class="btn navy" data-act="vt-kap" data-k="${k + 1}">Weiter: ${VORTEIL_KURZ[k + 1]} →</button>` : ''}</div>`;
+  box.innerHTML = `<section class="panel glass sec vt-top"><div id="vt-sum"></div><nav class="vt-nav" id="vt-nav" role="tablist" aria-label="Kapitel"></nav></section>
+    <section class="panel glass sec vt-kap" id="vk-${k}">${secHead(k, esc(VORTEIL_KAP[k]), k === 2 || k === 3 ? 'Individuell: Ersparnis pro Monat selbst eintragen' : 'Richtwert vorbelegt, Vorher und Nachher anpassen')}${VORTEIL.filter((it) => it.kap === k).map(vRow).join('')}${nav}</section>
+    <p class="card-sub" style="margin:12px 4px 0">Nur angekreuzte Maßnahmen zählen in die Summe und ins PDF. Vorher ist mit einem Richtwert vorbelegt, trag den echten Betrag des Kunden ein.</p>`;
   vSummary();
 }
 function vInput(t) {
@@ -506,7 +519,7 @@ function showTab(t) {
 function markDirty() { dirtyFlag = true; const s = $('save-state'); s.textContent = 'Nicht gespeichert'; s.classList.add('dirty'); }
 function markClean(txt) { dirtyFlag = false; const s = $('save-state'); s.textContent = txt; s.classList.remove('dirty'); }
 function openApp() {
-  $('start').hidden = true; $('app').hidden = false; $('top-actions').hidden = false; showMiss = false;
+  $('start').hidden = true; $('app').hidden = false; $('top-actions').hidden = false; showMiss = false; vKap = 1;
   applyState(); vnPush(true); showTab('bogen');
 }
 function goHome() {
@@ -1051,6 +1064,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'pdf-budget') { syncName(); syncContracts(); download(`Budgetcheck_${today()}.pdf`, buildPdf().blob); }
   else if (act === 'vn-present') vnPresent();
   else if (act === 'pdf-vn') { if (!vnReady) return; download(`Vorher-Nachher_${today()}.pdf`, buildVnPdf()); }
+  else if (act === 'vt-kap') { vKap = +t.dataset.k; renderVorteil(); const p = $('pane-vorteil'); if (p.getBoundingClientRect().top < 0) p.scrollIntoView({ block: 'start' }); }
   else if (act === 'pdf-vorteil') { if (!vorteilHasData()) { toast('Kreuz zuerst mindestens eine Maßnahme an.'); return; } download(`Sparpotenzial_${today()}.pdf`, buildVorteilPdf()); }
   else if (act === 'dlg-back') $('dlg').close();
   else if (act === 'dlg-save') { $('dlg').close(); saveAll(); }
