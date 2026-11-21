@@ -40,6 +40,7 @@
       <button class="mtab" role="tab" type="button" data-act="tab" data-tab="bogen" aria-selected="true"><span class="step">1</span>Abfragebogen</button>
       <button class="mtab" role="tab" type="button" data-act="tab" data-tab="budget" aria-selected="false"><span class="step">2</span>Budgetcheck</button>
       <button class="mtab" role="tab" type="button" data-act="tab" data-tab="vn" aria-selected="false"><span class="step">3</span>Vorher-Nachher</button>
+      <button class="mtab" role="tab" type="button" data-act="tab" data-tab="vorteil" aria-selected="false"><span class="step">4</span>Vorteilsregal</button>
     </nav>
     <main>
       <section id="pane-bogen">
@@ -64,6 +65,14 @@
           <span class="vn-btns"><button type="button" class="btn ghost" data-act="vn-present" id="vn-present" aria-pressed="false">Präsentieren</button><button type="button" class="btn ghost" data-act="pdf-vn">Vorher-Nachher-PDF herunterladen</button></span>
         </div>
         <iframe id="vn-frame" title="Vorher-Nachher"></iframe>
+      </section>
+
+      <section id="pane-vorteil" hidden>
+        <div class="pane-head">
+          <div><h2>Vorteilsregal</h2><p>Gemeinsam prüfen, wo du sparen kannst. Ankreuzen, was du umsetzt – die Ersparnis rechnet sich direkt als Sparplan bis zur Rente hoch.</p></div>
+          <button type="button" class="btn ghost" data-act="pdf-vorteil">Sparpotenzial-PDF herunterladen</button>
+        </div>
+        <div id="vorteil"></div>
       </section>
     </main>
   </div>

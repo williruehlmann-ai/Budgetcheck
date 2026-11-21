@@ -30,7 +30,7 @@ function newKunde() {
     vertraege: [], kv: { art: '', anbieter: '' },
     rente: { vorhanden: null, erreicht: '', hochgerechnet: '', stand: '' },
     bav: { ja: null, eigen: '', arbeitgeber: '' }, vl: { arbeitgeberZahlt: null, betrag: '', genutzt: null },
-    budget: emptyState(), vorherNachher: null, vnAuto: [], bestand: {}, ziele: [], empfehlungen: [],
+    budget: emptyState(), vorherNachher: null, vnAuto: [], bestand: {}, ziele: [], empfehlungen: [], vorteil: {},
   };
 }
 function merge(def, src) {
@@ -62,6 +62,73 @@ const OPT = {
 };
 const optLabel = (list, v) => { const o = OPT[list].find((x) => String(x[0]) === String(v)); return o ? o[1] : ''; };
 const ZWD = { m: 1, q: 3, h: 6, j: 12 };
+
+/* ---------- Vorteilsregal: Einsparungen gemeinsam mit dem Kunden prüfen ---------- */
+const VORTEIL_KAP = {
+  1: 'Laufende Einsparungen', 2: 'Optimierung Kapitalanlagen & Finanzierungen', 3: 'Aktivierung ungehobener Schätze', 4: 'Tipps für Einsparungen im Alltag',
+};
+const VORTEIL = [
+  { id: "v01", kap: 1, bereich: "Energie & Wohnen", titel: "Strom- oder Gasanbieter wechseln", standard: 25, tipp: "Verbrauch notieren, Kooperationspartner Enveko: Über tecis Zugang zu attraktiven Strom-/Gastarifen bei Enveko (enveko.de). Jährlich Anbieter prüfen – Tarife schwanken stark.", partner: "Enveko (tecis-Partner)" },
+  { id: "v02", kap: 1, bereich: "Finanzen & Verträge", titel: "GKV Wechsel", standard: 40, tipp: "Wechsel zu GKV mit günstigem Zusatzbeitrag. Unterschied bis 2,5% = bis 60 €/Monat. Sonderkündigungsrecht bei Beitragserhöhung. Nutze hierfür den Kassenkompass (Variante: Beitragssieger), CRM -> Angebotsrechner", partner: null },
+  { id: "v03", kap: 1, bereich: "Finanzen & Verträge", titel: "Kontowechsel zur DKB (kostenloses Girokonto)", standard: 8, tipp: "Direktbank mit kostenlosem Girokonto (z. B. DKB, ING, Comdirect). Gesetzlicher Kontowechsel-Service seit 2016 – neue Bank übernimmt Lastschriften/Daueraufträge automatisch.", partner: null },
+  { id: "v04", kap: 1, bereich: "Finanzen & Verträge", titel: "Handyvertrag wechseln (SIM-only oder Prepaid)", standard: 24, tipp: "SIM-only spart 15–30 €/Monat. Anbieter: WinSIM, simplytel, congstar (20–30 GB ab ca. 8–12 €/Monat). Vergleich auf handyhase.de.", partner: null },
+  { id: "v05", kap: 1, bereich: "Finanzen & Verträge", titel: "Steuererklärung mit App machen", standard: 130, tipp: "Taxfix oder WISO Steuer – ø 1.095 € Rückerstattung (Stat. Bundesamt). Werbungskosten, Homeoffice (6 €/Tag), Fahrtkosten (30 Ct/km) absetzen.", partner: null },
+  { id: "v06", kap: 1, bereich: "Finanzen & Verträge", titel: "Telematik-Tarif bei KFZ-Versicherung aktivieren", standard: 10, tipp: "Rabatt 5–30% je nach Fahrverhalten (z. B. HUK, Allianz Drive, AXA). Lohnt besonders für Wenigfahrer.", partner: null },
+  { id: "v07", kap: 1, bereich: "Finanzen & Verträge", titel: "Familien-/Partnertarife für Streaming & Handy", standard: 15, tipp: "Spotify Family (6 Personen) = 17,99 €. Mehrsim-Tarife bei O2/Telekom/Vodafone nutzen.", partner: null },
+  { id: "v08", kap: 1, bereich: "Finanzen & Verträge", titel: "Anzahl der Streamingdienste überprüfen", standard: 50, tipp: "Auf das Minimum reduzieren. Amazon Prime Video Kanäle im Kundenkonto prüfen. Rotation: 1–2 Monate buchen, kündigen, nächsten testen.", partner: null },
+  { id: "v09", kap: 1, bereich: "Finanzen & Verträge", titel: "Optimierung der Streamingdienste (Tarif mit Werbung)", standard: 10, tipp: "Netflix Standard mit Werbung 4,99 € statt Premium 19,99 €. Kurze Werbeunterbrechungen (4–5 Min./Stunde).", partner: null },
+  { id: "v10", kap: 1, bereich: "Finanzen & Verträge", titel: "Jährliche Zahlweise bei Versicherungen & Verträgen", standard: 10, tipp: "Rabatt 3–6%. Amazon Prime: 89,90 €/Jahr vs. 107,88 €/Jahr monatlich = 17,98 € gespart.", partner: null },
+  { id: "v11", kap: 1, bereich: "Finanzen & Verträge", titel: "Unnötige Versicherungen checken", standard: 50, tipp: "Doppelversicherungen bei Zusammenzug eliminieren. Oft überflüssig: Handyversicherung, Reisegepäck, Sterbegeld. Wichtig: Haftpflicht, BU, Hausrat.", partner: null },
+  { id: "v12", kap: 1, bereich: "Steuern & Wohnen", titel: "Kirchensteuer optimieren (Austritt oder Wechsel prüfen)", standard: 30, tipp: "Die Kirchensteuer beträgt 8–9% der Einkommensteuer (je nach Bundesland) und wird automatisch über die Lohnsteuer abgeführt. Wer keiner Kirche angehören möchte, kann beim Standesamt aus der Kirche austreten (Gebühr ca. 30 €, einmalig). Prüf individuell, ob ein Austritt zu deiner persönlichen Situation passt – auch aus religiösen/sozialen Gründen abwägen. Wichtig: Kirchliche Trauung, Beerdigung etc. sind nach Austritt meist nicht mehr möglich.", partner: null },
+  { id: "v13", kap: 1, bereich: "Wohnen & Miete", titel: "Miete senken mit CONNY (Mietpreisbremse prüfen)", standard: 50, tipp: "CONNY prüft kostenlos, ob deine Miete gegen die Mietpreisbremse (§ 556d BGB) verstößt – Mieter in vielen Großstädten zahlen oft 200–400 € zu viel im Monat. CONNY übernimmt die komplette Durchsetzung; eine Provision fällt nur bei Erfolg an (No-Win-No-Fee-Prinzip). Besonders relevant bei Neuvermietung der letzten Jahre in angespannten Wohnungsmärkten.", partner: null },
+  { id: "v14", kap: 1, bereich: "Finanzen & Verträge", titel: "Preisverhandlungen führen (Handy, Strom, Internet)", standard: 15, tipp: "Bestehende Verträge telefonisch nachverhandeln – Treuebonus erfragen. Kündigung ankündigen → oft sofort Rabatt.", partner: null },
+  { id: "v15", kap: 1, bereich: "Finanzen & Verträge", titel: "Versicherungen regelmäßig vergleichen & optimieren", standard: 20, tipp: "Jährlicher Check durch tecis Berater. Lebensumstände ändern sich (Umzug, Heirat, Kinder) – Versicherungsbedarf anpassen.", partner: null },
+  { id: "v16", kap: 1, bereich: "Finanzen & Verträge", titel: "Unnötige Abos via Handy checken (Cloud-Dienste, Apps)", standard: 20, tipp: "iPhone: Einstellungen → Apple-ID → Abos. Android: Play Store → Profil → Zahlungen & Abos. Auch Kontoauszüge auf kleine Abbuchungen prüfen.", partner: null },
+  { id: "v17", kap: 2, bereich: "Finanzierungen", titel: "Anschlussfinanzierungen optimieren", standard: null, tipp: "12–24 Monate vor Ablauf Angebote einholen. Forward-Darlehen sichert heutige Zinsen. Oft 100–300 €/Monat Einsparpotenzial.", partner: null },
+  { id: "v18", kap: 2, bereich: "Finanzierungen", titel: "Bausparverträge überprüfen & optimieren", standard: null, tipp: "Alte Bausparverträge (vor 2010) mit hohen Guthabenszinsen nicht voreilig kündigen – wertvolle Renditebringer!", partner: null },
+  { id: "v19", kap: 2, bereich: "Kapitalanlagen", titel: "Wertpapier-Depots überprüfen & optimieren", standard: null, tipp: "Fondsgebühren (TER) 1,5–2,5% vs. ETF 0,1–0,3% → über 30 Jahre 30–50% weniger Endkapital bei teuren Fonds.", partner: null },
+  { id: "v20", kap: 2, bereich: "Kapitalanlagen", titel: "Tagesgeld-/Festgeldkonten optimieren", standard: null, tipp: "Vergleich auf Zinsen.de. EU-Banken mit Einlagensicherung bis 100.000 € oft attraktiver als deutsche Hausbank.", partner: null },
+  { id: "v21", kap: 2, bereich: "Kapitalanlagen", titel: "Kapitalanlageimmobilien & Private Equity prüfen", standard: null, tipp: "Rendite, Finanzierungsstruktur und steuerliche Optimierung prüfen. Termingelder auf Laufzeit/Liquidität überprüfen.", partner: null },
+  { id: "v22", kap: 3, bereich: "Kleidung & Bücher", titel: "Kleidung verkaufen (Vinted, eBay Kleinanzeigen, momox)", standard: null, tipp: "Markenstücke bringen auf Vinted 10–30 €. Gute Fotos und Beschreibung = schneller Verkauf.", partner: null },
+  { id: "v23", kap: 3, bereich: "Kleidung & Bücher", titel: "Bücher verkaufen (z. B. medimops)", standard: null, tipp: "medimops: sofortige Preisauskunft per ISBN-Scan-App. Schulbücher und Fachbücher besonders wertvoll.", partner: null },
+  { id: "v24", kap: 3, bereich: "Sammlungen & Spielzeug", titel: "Sammlungen verkaufen (Briefmarken, Münzen, Pokémon-Karten)", standard: null, tipp: "Pokémon-Karten aus den 1990ern: PSA-Grading-Wert prüfen. Briefmarken über spezialisierte Ankäufer oder Auktionshäuser.", partner: null },
+  { id: "v25", kap: 3, bereich: "Sammlungen & Spielzeug", titel: "Spielzeug verkaufen (Lego, Carrera-Bahn, Modelleisenbahn)", standard: null, tipp: "Lego: auf eBay oft 50–100% des Kaufpreises, mit OVP sogar mehr. Carrera-Sets sehr gefragt.", partner: null },
+  { id: "v26", kap: 3, bereich: "Technik & Geräte", titel: "Altgeräte verkaufen (Handys, Konsolen, Laptops)", standard: 20, tipp: "iPhone XR: 80–150 €, iPhone 12: 200–280 €. Laptops (< 3 Jahre alt) auf eBay Kleinanzeigen oder Rebuy.", partner: null },
+  { id: "v27", kap: 3, bereich: "Vergessene Werte", titel: "Verstecktes Geld aufspüren (alte Konten, Verträge, Erstattungen)", standard: null, tipp: "DRV: unberücksichtigte Beitragszeiten suchen. Zulagencheck bei Riester/AVD. Unverzinsliche Verrechnungskonten bei alten LVs prüfen.", partner: null },
+  { id: "v28", kap: 4, bereich: "Freizeit", titel: "Arbeitgeberkooperationen nutzen (z. B. HanseFit)", standard: 15, tipp: "HanseFit / EGYM Wellpass: Tausende Partnerstudios. Arbeitgeber zahlt oft mit. Nicht an ein Studio gebunden.", partner: null },
+  { id: "v29", kap: 4, bereich: "Freizeit", titel: "Fitnessstudio-Beitrag nachverhandeln", standard: 15, tipp: "Bei Kündigung bieten Studios oft 20–40% Rabatt, Freeze-Optionen oder Upgrades. Schriftlich ankündigen, dann telefonisch nachfassen.", partner: null },
+  { id: "v30", kap: 4, bereich: "Konsum clever", titel: "Rabattcodes & Preisalarme prüfen", standard: 30, tipp: "Honey-Plugin findet automatisch Gutscheincodes. Idealo-Preisalarme setzen – Benachrichtigung bei Preisrückgang.", partner: null },
+  { id: "v31", kap: 4, bereich: "Konsum clever", titel: "Beim Einkaufen App benutzen (z. B. Rewe, Lidl, Penny)", standard: 10, tipp: "Rewe App: Coupons bis 50% Rabatt. Lidl Plus: wöchentliche Angebote und Cashback. App vorher öffnen und Coupons aktivieren.", partner: null },
+  { id: "v32", kap: 4, bereich: "Konsum clever", titel: "B-Ware oder Outlet kaufen", standard: 20, tipp: "Amazon Warehouse, Hersteller-Outlets, Otto Gebraucht. B-Ware oft 20–40% günstiger, mit voller oder reduzierter Garantie.", partner: null },
+  { id: "v33", kap: 4, bereich: "Konsum clever", titel: "Corporate Benefits nutzen (z. B. App RYD)", standard: 10, tipp: "tecis Kundenportal: Zugriff auf Corporate Benefits. RYD + CleverTanken: 2% pro Tankvorgang. Rabatte 10–35% auf Elektronik, Reisen, Mode.", partner: "tecis Kundenportal (Corporate Benefits)" },
+  { id: "v34", kap: 4, bereich: "Konsum clever", titel: "Meilen-/Punkteprogramme aktiv nutzen (Payback, Miles&More)", standard: 25, tipp: "Payback bei REWE, dm, Aral. Extra-Punkte-Aktionen in der App vorab aktivieren. Für Gutscheine einlösen (nicht für Airlines).", partner: null },
+  { id: "v35", kap: 4, bereich: "Konsum clever", titel: "Lebensmittel retten (Too Good To Go, SirPlus)", standard: 15, tipp: "Überraschungstüten für 3–5 € mit Waren im Wert von 10–15 €. Täglich neue Angebote von Restaurants, Bäckereien, Supermärkten.", partner: null },
+  { id: "v36", kap: 4, bereich: "Konsum clever", titel: "NeoTaste nutzen (Restaurantangebote 30–50% Rabatt)", standard: 15, tipp: "App mit exklusiven Deals bei lokalen Restaurants – oft 30–50% beim ersten Besuch. Viele Städte mit hunderten Lokalen. Kostenloser Download, Premium ca. 3–5 €/Monat.", partner: null },
+  { id: "v37", kap: 4, bereich: "Mobilität", titel: "Tank-Apps nutzen (Clever Tanken, MehrTanken)", standard: 15, tipp: "Bis zu 13 Ct/L sparen. Günstigste Zeiten: Di/Mi nachmittags. Autobahnraststätten meiden.", partner: null },
+  { id: "v38", kap: 4, bereich: "Technik & Kommunikation", titel: "Internettarif wechseln", standard: 25, tipp: "Verivox oder Check24. Kabelanbieter anrufen und Rabatt verhandeln – oft 5–15 €/Monat bei Kündigung.", partner: null },
+  { id: "v39", kap: 4, bereich: "Technik & Kommunikation", titel: "Internet + Handy Kombitarif buchen", standard: 10, tipp: "Vodafone GigaKombi, O2 Home & Mobile. Spart oft 10–20 €/Monat plus ein Ansprechpartner.", partner: null },
+  { id: "v40", kap: 4, bereich: "Technik & Kommunikation", titel: "Router kaufen statt mieten", standard: 7, tipp: "AVM Fritz!Box 7590 ca. 190 €, amortisiert nach 2 Jahren. Anbieter verlangen 5–8 €/Monat für schlechtere Geräte.", partner: null },
+  { id: "v41", kap: 4, bereich: "Technik & Kommunikation", titel: "Refurbished-Geräte statt Neuware kaufen", standard: 15, tipp: "Back Market, Rebuy, asgoodasnew. 20–40% günstiger mit Garantie. Grade A kaum von Neuware zu unterscheiden.", partner: null },
+  { id: "v42", kap: 4, bereich: "Technik & Kommunikation", titel: "Technik-Check vor jedem Neukauf: Altgeräte verkaufen statt liegen lassen", standard: 20, tipp: "Nicht nur einmalig, sondern als feste Gewohnheit: Vor jedem Neukauf prüfen, was vom Altgerät noch zu holen ist. eBay Kleinanzeigen oder Swappie zahlen oft mehr als der Apple-Rücknahmebonus. Vor Verkauf: Werksreset + iCloud-/Google-Konto trennen.", partner: null },
+];
+const V_RENTE_ALTER = 67, V_BEZUG_JAHRE = 18; // Annahmen: Hochrechnung bis 67 mit 6 % p. a. (wie Budgetcheck), Auszahlung über 18 Jahre
+function vState(id) {
+  if (!K.vorteil || typeof K.vorteil !== 'object' || Array.isArray(K.vorteil)) K.vorteil = {};
+  if (!K.vorteil[id]) { const d = VORTEIL.find((x) => x.id === id); K.vorteil[id] = { c: false, v: d && d.standard != null ? String(d.standard) : '', n: '', b: '', note: '' }; }
+  return K.vorteil[id];
+}
+function vGet(id) { const s = K.vorteil && K.vorteil[id]; if (s) return s; const d = VORTEIL.find((x) => x.id === id); return { c: false, v: d && d.standard != null ? String(d.standard) : '', n: '', b: '', note: '' }; }
+const vNum = (x) => { const n = parseFloat(String(x ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
+function vErsparnis(it) { const s = vGet(it.id); return it.standard != null ? vNum(s.v) - vNum(s.n) : vNum(s.b); }
+function vTotals() {
+  const checked = VORTEIL.filter((it) => vGet(it.id).c);
+  const monat = checked.reduce((s, it) => s + vErsparnis(it), 0);
+  const a = alter(), jahre = a == null ? null : Math.max(0, V_RENTE_ALTER - a);
+  const kapital = jahre == null || monat <= 0 ? null : project(0, monat, jahre);
+  const rente = kapital == null ? null : kapital / (V_BEZUG_JAHRE * 12);
+  return { checked, monat, jahre, kapital, rente };
+}
+const vorteilHasData = () => VORTEIL.some((it) => vGet(it.id).c);
 
 /* ---------- Verträge: Sparten aus Vorher-Nachher, Zuordnung zum Budgetcheck ---------- */
 const NO_CONTRACT = ['Gesetzliche KV', 'Gesetzliche Rente', 'Einmalanlage', 'Termingeld', 'Tagesgeld', 'Notreserve'];
@@ -377,13 +444,61 @@ function updateDerived() {
   if (showMiss) document.querySelectorAll('#bogen .f[data-f]').forEach((f) => { const p = f.dataset.f; f.classList.toggle('miss', isReq(p) && isEmpty(p === 'budget.v.in-salary' ? nettoMonat() : getP(K, p))); });
 }
 
+/* ---------- Vorteilsregal: Anzeige ---------- */
+const eurC = (n) => (Math.round(n * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
+function vRow(it) {
+  const s = vGet(it.id), fix = it.standard != null, e = vErsparnis(it);
+  const inp = (f, label, val, ph) => `<label class="f"><span class="lab">${label}</span><input class="inp" type="number" inputmode="decimal" step="any" data-vid="${it.id}" data-vf="${f}" value="${esc(val)}"${ph ? ` placeholder="${ph}"` : ''}></label>`;
+  return `<div class="vt-row${s.c ? ' on' : ''}" id="vt-${it.id}">
+    <label class="vt-chk" title="In die Ersparnis übernehmen"><input type="checkbox" data-vid="${it.id}" data-vf="c"${s.c ? ' checked' : ''}><span class="sr">${esc(it.titel)} übernehmen</span></label>
+    <div class="vt-main">
+      <div class="vt-head"><b>${esc(it.titel)}</b><span class="vt-ber">${esc(it.bereich)}</span>${it.partner ? `<span class="vt-partner">${esc(it.partner)}</span>` : ''}</div>
+      <p class="vt-tipp">${esc(it.tipp)}</p>
+      <div class="vt-fields${fix ? '' : ' one'}">
+        ${fix ? inp('v', 'Vorher €/Monat', s.v, String(it.standard)) + inp('n', 'Nachher €/Monat', s.n, '0') : inp('b', 'Ersparnis €/Monat', s.b, 'Betrag eintragen')}
+        <label class="f vt-note"><span class="lab">Notiz (steht im PDF)</span><input class="inp" type="text" data-vid="${it.id}" data-vf="note" value="${esc(s.note)}" placeholder="optional" autocomplete="off"></label>
+        ${fix ? `<div class="vt-e" id="vte-${it.id}"><span>Ersparnis</span><b class="${e < 0 ? 'neg' : ''}">${eurC(e)}</b></div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+function vSummary() {
+  const el = $('vt-sum'); if (!el) return;
+  const t = vTotals();
+  const kap = t.kapital == null ? '–' : eur(t.kapital), ren = t.rente == null ? '–' : eur(t.rente);
+  const hint = t.jahre == null ? 'Geburtsdatum im Abfragebogen fehlt' : `${t.jahre} Jahre bis ${V_RENTE_ALTER}, 6 % p. a.`;
+  el.innerHTML = `<div class="bsum vt-tiles">
+      <div><div class="l">Ersparnis pro Monat</div><div class="v${t.monat > 0 ? ' posd' : ''}" id="vt-monat">${eurC(t.monat)}</div><small>${t.checked.length} von ${VORTEIL.length} Maßnahmen übernommen · ${eur(t.monat * 12)} im Jahr</small></div>
+      <div><div class="l">Als Sparplan bis ${V_RENTE_ALTER}</div><div class="v" id="vt-kapital">${kap}</div><small>${esc(hint)}</small></div>
+      <div><div class="l">Zusätzliche Rente pro Monat</div><div class="v" id="vt-rente">${ren}</div><small>Schätzung, verteilt auf ${V_BEZUG_JAHRE} Jahre ab ${V_RENTE_ALTER}</small></div>
+    </div>`;
+}
+function renderVorteil() {
+  const box = $('vorteil'); if (!box) return;
+  box.innerHTML = `<section class="panel glass sec vt-top"><div id="vt-sum"></div><p class="card-sub" style="margin:10px 0 0">Nur angekreuzte Maßnahmen zählen in die Summe und ins PDF. Vorher ist mit einem Richtwert vorbelegt, trag den echten Betrag des Kunden ein.</p></section>`
+    + [1, 2, 3, 4].map((k) => `<section class="panel glass sec vt-kap" id="vk-${k}">${secHead(k, esc(VORTEIL_KAP[k]), k === 2 || k === 3 ? 'Individuell: Ersparnis pro Monat selbst eintragen' : 'Richtwert vorbelegt, Vorher und Nachher anpassen')}${VORTEIL.filter((it) => it.kap === k).map(vRow).join('')}</section>`).join('');
+  vSummary();
+}
+function vInput(t) {
+  const id = t.dataset.vid, f = t.dataset.vf, it = VORTEIL.find((x) => x.id === id); if (!it) return;
+  const s = vState(id);
+  if (f === 'c') { s.c = t.checked; $('vt-' + id).classList.toggle('on', s.c); }
+  else s[f] = t.value;
+  if (f !== 'note' && it.standard != null) { const e = vErsparnis(it), b = $('vte-' + id).querySelector('b'); if (b) { b.textContent = eurC(e); b.classList.toggle('neg', e < 0); } }
+  // Betrag eingetragen: automatisch übernehmen, wenn noch nicht angekreuzt
+  if (!s.c && ((f === 'b' && vNum(s.b) > 0) || (f === 'n' && t.value !== ''))) { s.c = true; const cb = $('vt-' + id).querySelector('input[type=checkbox]'); cb.checked = true; $('vt-' + id).classList.add('on'); }
+  markDirty(); vSummary();
+}
+document.addEventListener('input', (e) => { const t = e.target; if (t.dataset && t.dataset.vid && t.closest('#vorteil')) vInput(t); });
+
 /* ---------- Tabs, Start, Status ---------- */
 function showTab(t) {
   mainTab = t;
   document.querySelectorAll('.mtab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-  ['bogen', 'budget', 'vn'].forEach((p) => { $('pane-' + p).hidden = p !== t; });
+  ['bogen', 'budget', 'vn', 'vorteil'].forEach((p) => { $('pane-' + p).hidden = p !== t; });
   if (t === 'budget') { applyState(); show(current); }
   if (t === 'bogen') renderBogen();
+  if (t === 'vorteil') renderVorteil();
   document.body.classList.toggle('tab-vn', t === 'vn');
   scrollTo(0, 0);
   if (t === 'vn') { vnPush(false, true); vnSize(); }
@@ -439,7 +554,7 @@ async function renderStart() {
   const dirTxt = dirState === 'ok' ? `<span class="dot-s ok"></span>Verbunden: ${esc(dirHandle.name)}` : dirState === 'prompt' ? `<span class="dot-s warn"></span>${esc(dirHandle.name)}: Zugriff bestätigen` : '<span class="dot-s"></span>Noch kein Ordner verbunden';
   const dirBtn = dirState === 'prompt' ? '<button type="button" class="btn navy" data-act="dir-confirm">Zugriff bestätigen</button>' : `<button type="button" class="btn line" data-act="dir-pick">${dirState === 'ok' ? 'Anderen Ordner wählen' : 'Ordner „Kunden“ wählen'}</button>`;
   $('start').innerHTML = `<div class="start">
-    <div><h2>Beratungstool</h2><p class="lead">Abfragebogen, Budgetcheck und Vorher-Nachher an einem Ort. Alles bleibt auf diesem Mac.</p></div>
+    <div><h2>Beratungstool</h2><p class="lead">Abfragebogen, Budgetcheck, Vorher-Nachher und Vorteilsregal an einem Ort. Alles bleibt auf diesem Mac.</p></div>
     <div class="start-btns">
       <button type="button" class="bigbtn gold" data-act="new"><b>Neuer Kunde</b><span>Leeren Abfragebogen starten</span></button>
       <button type="button" class="bigbtn glass" data-act="load"><b>Kunde laden</b><span>kunde.json aus dem Kundenordner öffnen</span></button>
@@ -459,7 +574,7 @@ function loadJson(txt) {
   if (!o || o.app !== 'beratungstool') { toast('Das ist keine kunde.json aus dem Beratungstool.'); return false; }
   if (o.verschluesselt) { toast('Diese Datei ist verschlüsselt. Das Entsperren kommt mit dem Passwortschutz.'); return false; }
   if (o.schemaVersion > SCHEMA) { toast('Die Datei stammt aus einer neueren Version des Tools.'); return false; }
-  K = merge(newKunde(), o); K.schemaVersion = SCHEMA; K.gesundheit.aktiv = false; K.budget = Object.assign(emptyState(), K.budget); S = K.budget;
+  K = merge(newKunde(), o); K.schemaVersion = SCHEMA; K.gesundheit.aktiv = false; if (!K.vorteil || typeof K.vorteil !== 'object' || Array.isArray(K.vorteil)) K.vorteil = {}; K.budget = Object.assign(emptyState(), K.budget); S = K.budget;
   openApp(); markClean('Geladen'); return true;
 }
 async function openClient(name) {
@@ -495,6 +610,7 @@ async function saveAll() {
     if (mainTab !== 'vn') vnPush();
     const pdfs = [['Abfragebogen', buildBogenPdf()], ['Budgetcheck', buildPdf().blob]];
     if (vnReady && vnHasNachher()) pdfs.push(['Vorher-Nachher', buildVnPdf()]);
+    if (vorteilHasData()) pdfs.push(['Sparpotenzial', buildVorteilPdf()]);
     const useDir = await ensureDir();
     if (useDir) {
       const dir = await dirHandle.getDirectoryHandle(folderName(), { create: true });
@@ -807,6 +923,93 @@ function buildVnPdf() {
   return doc.output('blob');
 }
 
+/* ---------- PDF Sparpotenzial (Vorteilsregal, gleicher Aufbau wie die anderen PDFs) ---------- */
+function buildVorteilPdf() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const NAVY = [10, 31, 68], GOLD = [201, 162, 74], GOLDI = [138, 103, 25], INK = [11, 27, 54], INK2 = [51, 65, 92], INK3 = [98, 112, 138], LINE = [226, 231, 240], OK = [30, 138, 99], BAD = [178, 58, 58];
+  const px = (s) => pdfText(String(s).replace(/\s*→\s*/g, ' > '));
+  const T = (txt, x, y, o) => doc.text(px(txt), x, y, o);
+  const name = `${K.person.vorname} ${K.person.nachname}`.trim(), dateStr = deDate(today()), t = vTotals();
+  function header(title) {
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 78, 'F'); doc.setFillColor(...GOLD); doc.rect(0, 78, W, 2.5, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); T(title, 40, 36);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(230, 199, 126);
+    T(name ? `Kunde: ${name}` : 'Kunde: ohne Namen', 40, 54); T(`Erstellt am ${dateStr}`, 40, 66);
+    doc.setTextColor(210, 218, 232); T(`Berater: ${ADVISOR.name} · tecis`, W - 40, 42, { align: 'right' }); T(advContact(), W - 40, 56, { align: 'right' });
+  }
+  let y;
+  const ensure = (h) => { if (y + h > H - 50) { doc.addPage(); header('Sparpotenzial (Fortsetzung)'); y = 108; return true; } return false; };
+  header('Sparpotenzial-Übersicht'); y = 100;
+
+  // Kennzahlen
+  const tiles = [
+    ['Ersparnis pro Monat', eurC(t.monat), `${eur(t.monat * 12)} im Jahr · ${t.checked.length} Maßnahmen`, null],
+    [`Als Sparplan bis ${V_RENTE_ALTER}`, t.kapital == null ? '–' : eur(t.kapital), t.jahre == null ? 'Geburtsdatum fehlt' : `${t.jahre} Jahre · 6 % p. a. (Annahme)`, GOLD],
+    ['Zusätzliche Rente pro Monat', t.rente == null ? '–' : eur(t.rente), `Schätzung · ${V_BEZUG_JAHRE} Jahre ab ${V_RENTE_ALTER}`, NAVY],
+  ];
+  const tw = (W - 80 - 2 * 12) / 3;
+  tiles.forEach(([l, val, s, c], i) => {
+    const x = 40 + i * (tw + 12), dark = c === null;
+    if (dark) { doc.setFillColor(...NAVY); doc.roundedRect(x, y, tw, 62, 5, 5, 'F'); doc.setFillColor(...GOLD); doc.rect(x, y, 3, 62, 'F'); }
+    else { doc.setFillColor(255, 255, 255); doc.setDrawColor(...LINE); doc.roundedRect(x, y, tw, 62, 5, 5, 'FD'); doc.setFillColor(...c); doc.rect(x, y, 3, 62, 'F'); }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...(dark ? [230, 199, 126] : INK3)); T(l.toUpperCase(), x + 11, y + 15);
+    doc.setFontSize(16); doc.setTextColor(...(dark ? [255, 255, 255] : INK)); T(val, x + 11, y + 38);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...(dark ? [210, 218, 232] : INK3)); T(s, x + 11, y + 52);
+  });
+  y += 84;
+
+  // Tabelle je Kapitel, nur übernommene Maßnahmen
+  const cx = { m: 40, v: W - 210, n: W - 140, e: W - 40 };
+  function thead() {
+    doc.setFillColor(...NAVY); doc.rect(40, y, W - 80, 17, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+    T('MASSNAHME', 46, y + 11.5); T('VORHER', cx.v, y + 11.5, { align: 'right' }); T('NACHHER', cx.n, y + 11.5, { align: 'right' });
+    doc.setTextColor(...GOLD); T('ERSPARNIS / MONAT', cx.e - 6, y + 11.5, { align: 'right' }); y += 17;
+  }
+  thead();
+  [1, 2, 3, 4].forEach((k) => {
+    const its = t.checked.filter((it) => it.kap === k); if (!its.length) return;
+    if (ensure(40)) thead();
+    doc.setFillColor(238, 242, 248); doc.rect(40, y, W - 80, 15, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...NAVY); T(`KAPITEL ${k} · ${VORTEIL_KAP[k].toUpperCase()}`, 46, y + 10.5); y += 15;
+    its.forEach((it) => {
+      const s = vGet(it.id), e = vErsparnis(it), fix = it.standard != null;
+      doc.setFontSize(9); const tl = doc.splitTextToSize(px(it.titel), cx.v - 120);
+      doc.setFontSize(7.5); const tip = doc.splitTextToSize(px(it.tipp), W - 100);
+      const note = (s.note || '').trim() ? doc.splitTextToSize(px('Notiz: ' + s.note.trim()), W - 100) : [];
+      const h = tl.length * 11 + 12 + (it.partner ? 11 : 0) + tip.length * 9.5 + note.length * 9.5 + 8;
+      if (ensure(h)) thead();
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...INK); tl.forEach((l, i) => doc.text(l, 46, y + 12 + i * 11));
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...INK2);
+      T(fix && s.v !== '' ? eurC(vNum(s.v)) : '–', cx.v, y + 12, { align: 'right' });
+      T(fix ? eurC(vNum(s.n)) : '–', cx.n, y + 12, { align: 'right' });
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...(e < 0 ? BAD : OK)); T(eurC(e), cx.e - 6, y + 12, { align: 'right' });
+      let yy = y + 12 + tl.length * 11;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...INK3); T(it.bereich.toUpperCase(), 46, yy - 1); yy += 9;
+      if (it.partner) { doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...GOLDI); T(it.partner, 46, yy); yy += 11; }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK2); tip.forEach((l) => { doc.text(l, 46, yy); yy += 9.5; });
+      if (note.length) { doc.setTextColor(...NAVY); note.forEach((l) => { doc.text(l, 46, yy); yy += 9.5; }); }
+      y = yy + 2; doc.setDrawColor(...LINE); doc.setLineWidth(0.6); doc.line(40, y, W - 40, y); y += 2;
+    });
+  });
+  ensure(24);
+  doc.setFillColor(...NAVY); doc.rect(40, y, W - 80, 20, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(255, 255, 255);
+  T('Ersparnis gesamt pro Monat', 46, y + 13.5); doc.setTextColor(...GOLD); T(eurC(t.monat), cx.e - 6, y + 13.5, { align: 'right' }); y += 36;
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
+  const fn = `Hochrechnung: Die monatliche Ersparnis wird als Sparplan mit angenommenen 6 % Rendite pro Jahr bis zum ${V_RENTE_ALTER}. Lebensjahr angelegt. Die Rente verteilt dieses Kapital ohne weitere Verzinsung auf ${V_BEZUG_JAHRE} Jahre. Das ist eine Schätzung, keine Garantie; Renditen schwanken. Die Tipps sind allgemeine Hinweise und keine Empfehlung einzelner Anbieter.`;
+  doc.splitTextToSize(px(fn), W - 80).forEach((l) => { ensure(11); doc.text(l, 40, y); y += 10; });
+
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...INK3);
+    T(`tecis · ${ADVISOR.name} · ${advContact()}`, 40, H - 24); T(`Seite ${p} / ${pages}`, W - 40, H - 24, { align: 'right' }); }
+  doc.setProperties({ title: 'Sparpotenzial' + (name ? ' ' + px(name) : '') });
+  return doc.output('blob');
+}
+
 /* ---------- Ereignisse ---------- */
 function conv(t) { if (t.type === 'checkbox') return t.checked; if (t.dataset.t === 'number') { const n = parseFloat(t.value); return t.value === '' || !isFinite(n) ? '' : n; } return t.value; }
 document.addEventListener('input', (e) => {
@@ -848,6 +1051,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'pdf-budget') { syncName(); syncContracts(); download(`Budgetcheck_${today()}.pdf`, buildPdf().blob); }
   else if (act === 'vn-present') vnPresent();
   else if (act === 'pdf-vn') { if (!vnReady) return; download(`Vorher-Nachher_${today()}.pdf`, buildVnPdf()); }
+  else if (act === 'pdf-vorteil') { if (!vorteilHasData()) { toast('Kreuz zuerst mindestens eine Maßnahme an.'); return; } download(`Sparpotenzial_${today()}.pdf`, buildVorteilPdf()); }
   else if (act === 'dlg-back') $('dlg').close();
   else if (act === 'dlg-save') { $('dlg').close(); saveAll(); }
   else if (act === 'miss-jump') jumpTo($('dlg')._miss[+t.dataset.i]);

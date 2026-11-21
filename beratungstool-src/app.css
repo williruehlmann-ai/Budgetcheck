@@ -139,3 +139,29 @@ dialog.dlg p{margin:6px 0 0;font-size:13.5px;color:var(--ink-3)}
 .vn-btns{display:flex;gap:8px;flex-wrap:wrap}
 #vn-frame{display:block;width:100%;height:70vh;border:none;background:transparent;border-radius:18px}
 body.tab-vn main{padding-block:14px 0}
+
+/* Vorteilsregal */
+.vt-top{position:sticky;top:8px;z-index:5}
+.vt-tiles{margin-top:0}
+.vt-tiles small{display:block;font-size:11.5px;color:var(--ink-3);margin-top:4px}
+.vt-row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:14px 0;border-bottom:1px solid var(--hair);transition:background .2s}
+.vt-row:last-child{border-bottom:none}
+.vt-row.on{background:linear-gradient(90deg,var(--gold-soft),transparent 70%);margin-inline:-12px;padding-inline:12px;border-radius:12px}
+.vt-chk{padding-top:2px;cursor:pointer}
+.vt-chk input{width:20px;height:20px;accent-color:#0A1F44;cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.vt-head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.vt-head b{font:650 15px var(--f);color:var(--ink)}
+.vt-ber{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.vt-partner{font-size:11px;font-weight:700;color:var(--navy);background:var(--gold-soft);border:1px solid rgba(201,162,74,.4);padding:2px 8px;border-radius:99px}
+.vt-tipp{margin:4px 0 10px;font-size:13px;line-height:1.45;color:var(--ink-2);max-width:90ch}
+.vt-fields{display:grid;grid-template-columns:140px 140px minmax(0,1fr) 130px;gap:10px 12px;align-items:end}
+.vt-fields .f .lab{font-size:11.5px;font-weight:600;color:var(--ink-3)}
+.vt-fields .inp{padding:8px 10px;font-size:14px}
+.vt-e{text-align:right;padding-bottom:8px}
+.vt-e span{display:block;font-size:11px;color:var(--ink-3);font-weight:600}
+.vt-e b{font:700 16px var(--fd);color:var(--ok);font-variant-numeric:tabular-nums}
+.vt-e b.neg{color:var(--bad)}
+.vt-fields.one{grid-template-columns:160px minmax(0,1fr)}
+@media (max-width:760px){.vt-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-note{grid-column:1 / -1}.vt-e{text-align:left}.vt-top{position:static}}
+.vt-row:not(.on) .vt-e b{color:var(--ink-3)}

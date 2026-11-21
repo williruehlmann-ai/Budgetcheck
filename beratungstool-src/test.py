@@ -71,7 +71,7 @@ async def main():
         check('Budget: Sparquote 6 %, Fixkostenquote 35 %', vals['k-save']=='6 %' and vals['k-fix']=='35 %', vals)
         check('Notgroschen 3000 / 1185 = 2,5 Monate', vals['ring-res-v'].startswith('2,5'), vals['ring-res-v'])
         await page.screenshot(path=str(OUT/'04_budget.png'))
-        check('Kein Empfehlungen-Tab mehr', await page.locator('[data-tab="empf"]').count() == 0 and await page.locator('.mtab').count() == 3)
+        check('Kein Empfehlungen-Tab mehr', await page.locator('[data-tab="empf"]').count() == 0 and await page.locator('.mtab').count() == 4)
         await page.evaluate("K.notizen='INTERNENOTIZGEHEIM'")
         check('Ein Feld einmal eingeben: Bogen zeigt Budget-Summe', True)
         await page.click('[data-tab="bogen"]')
